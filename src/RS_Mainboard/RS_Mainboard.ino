@@ -62,8 +62,10 @@ ShiftRegister74HC595 ShiftReg(srCount, DAT0, SCLK0, LCLK0);
 const int contactHome = 45;
 const int contactTouch = 5;
 const int contactPress = 0;
+const int contactTime = 15;	// How long (in millis) does it take to move from Home to Touch?
 const int swingHome = 180;
 const int swingOpen = 130;
+const int swingTime = 15;	// How long (in millis) does it take to move from Home to Open?
 
 // Shift register states
 const uint8_t srState[10][srCount] = {
@@ -197,7 +199,26 @@ int cycleFeed(int count) {
 
 }
 
-int FeedResistor() {
+int dispenseResistor() {
+	// This function is triggered when the system kicks a resistor out into a cup.
+	// A result of 0 indicates success. Any other result indicates failure.
+
+	// Only dispense if the test platform contains a resistor.
+	if (bitRead(resistorQueue, 4) == false) {
+		return(-1);
+	}
+
+	SwingArm.write(swingOpen);
+	delay(swingTime);			// actual delay here, since we shouldn't move or process anything else until we're sure this is clear.
+	SwingArm.write(swingHome);
+
+	resistorQueue = resistorQueue & B11101111;	// Set bit 4 (Test Platform) low.
+
+	return(0);
+
+}
+
+int feedResistor() {
 	// This function is triggered when the user loads a resistor into the system.
 	// A result of 0 indicates success. Any other result indicates failure.
 
