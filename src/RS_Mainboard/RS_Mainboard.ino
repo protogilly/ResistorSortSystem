@@ -41,8 +41,8 @@
 #define RST0		23
 
 // I2C Pins
-#define SDA			18
-#define SCL			19
+#define SDA		18
+#define SCL		19
 
 // I2C Slave Channels
 #define FeedController 1
