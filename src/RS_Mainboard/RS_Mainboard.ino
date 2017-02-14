@@ -205,7 +205,7 @@ int FeedResistor() {
 
 	// resistorQueue will be even if the load platform is cleared. Only add a new resistor if the platform is clear.
 	if (resistorQueue % 2 == 0) {
-		resistorQueue++;
+		resistorQueue = resistorQueue | B00000001;		// Set the LSB (load platform) high
 		return(0);
 	} else {
 		return(-1);
