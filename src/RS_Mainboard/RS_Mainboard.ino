@@ -1,15 +1,15 @@
 /*
 	RS_Mainboard.ino - Code to control the Mainboard for the Resistor Sortation Project
 	Created by Shawn Westcott (www.8tinybits.com), Feb 2017.
-	
+
 	Schematics, Gerbers, and related source code can be found on this project's Github
-		https://github.com/slwstctt/ResistorSortSystem
-	
+	https://github.com/slwstctt/ResistorSortSystem
+
 	This code is currently unlicensed and is only available for educational purposes.
 	If you'd like to use this code for a non-educational purpose, please contact Shawn
 	Westcott (shawn.westcott@8tinybits.com).
 
-*/
+	*/
 
 #include <Arduino.h>
 #include <PWMServo.h>
@@ -37,7 +37,7 @@
 #define DAT0		17
 #define SCLK0		20
 #define LCLK0		21
-#define OE0			22
+#define OE0		22
 #define RST0		23
 
 // I2C Pins
@@ -67,28 +67,27 @@ const int swingOpen = 130;
 
 // Shift register states
 const uint8_t srState[10][srCount] = {
-	{ B00000000, B00000000 },	// Empty
-	{ B10000000, B00000000 },	// 10M Range
-	{ B01000000, B00000000 },	// 1M Range
-	{ B00100000, B00000000 },	// 100k Range
-	{ B00010000, B00000000 },	// 10k Range
-	{ B00001000, B00000000 },	// 1k Range
-	{ B00000100, B00000000 },	// 100R Range
-	{ B00000010, B01000000 },	// 100mA Source
-	{ B00000001, B01000000 },	// 29.37mA Source
-	{ B00000000, B11000000 }	// 18.18mA Source
+	{B00000000, B00000000},	// Empty
+	{B10000000, B00000000},	// 10M Range
+	{B01000000, B00000000},	// 1M Range
+	{B00100000, B00000000},	// 100k Range
+	{B00010000, B00000000},	// 10k Range
+	{B00001000, B00000000},	// 1k Range
+	{B00000100, B00000000},	// 100R Range
+	{B00000010, B01000000},	// 100mA Source
+	{B00000001, B01000000},	// 29.37mA Source
+	{B00000000, B11000000} 	// 18.18mA Source
 };
 
 // The resistor queue is represented internally by a collection of bits. 0 indicates no resistor in this position, while 1 indicates a resistor.
 // The LSB represents where the user feeds a resistor into the system, and bit 4 indicates the test platform. Bits 5-7 are ignored.
-uint8_t resistorQueue = { B00000000 };
+uint8_t resistorQueue = {B00000000};
 
 // These variables keep track of states of slave processors.
 volatile bool feedInProcess = false;
 volatile bool sortMotionInProcess = false;
 
-void setup()
-{
+void setup() {
 	// Init Servos
 	ContactArm.attach(SrvoA);
 	SwingArm.attach(SrvoB);
@@ -127,10 +126,9 @@ void setup()
 
 }
 
-void loop()
-{
+void loop() {
 
-  /* add main program code here */
+	/* add main program code here */
 
 }
 
@@ -144,7 +142,7 @@ void isrWheelClear() {
 
 void clearRegisters() {
 	// This function triggers the reset on the shift registers, then latches the empty register.
-	
+
 	digitalWrite(RST0, LOW);	// RESET is Active-low
 	delay(1);
 	digitalWrite(RST0, HIGH);
@@ -160,7 +158,7 @@ void clearRegisters() {
 int cycleFeed(int count) {
 	// This function triggers a feed cycle and updates the internal representation accordingly.
 	// A result of 0 indicates success. Any other result indicates failure.
-	
+
 	// Only feed if the count requested is reasonable (no feeding more than 4 positions, no feeding 0 or less positions)
 	if (count > 4 || count < 0) {
 		return(-1);
@@ -179,7 +177,7 @@ int cycleFeed(int count) {
 			isClear = false;
 		}
 	}
-	
+
 	if (!isClear) {
 		return(-3);
 	}
