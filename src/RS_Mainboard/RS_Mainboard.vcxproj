@@ -80,7 +80,11 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ProgmemData.h" />
     <ClInclude Include="__vm\.RS_Mainboard.vsarduino.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="ProgmemData.cpp" />
   </ItemGroup>
   <PropertyGroup>
     <DebuggerFlavor>VisualMicroDebugger</DebuggerFlavor>

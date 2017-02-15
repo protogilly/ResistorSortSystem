@@ -21,5 +21,9 @@
     <ClInclude Include="__vm\.RS_Mainboard.vsarduino.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ProgmemData.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="ProgmemData.cpp" />
   </ItemGroup>
 </Project>
