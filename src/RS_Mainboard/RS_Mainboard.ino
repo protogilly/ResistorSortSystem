@@ -9,44 +9,13 @@
 	If you'd like to use this code for a non-educational purpose, please contact Shawn
 	Westcott (shawn.westcott@8tinybits.com).
 
-	*/
+*/
 
 #include <Arduino.h>
 #include <PWMServo.h>
 #include <ShiftRegister74HC595.h>		// See: http://shiftregister.simsso.de/
 #include <Wire.h>
-
-// Pin Definitions. These follow the naming conventions on the Schematics and PCB.
-
-// Servo Control Pins
-#define SrvoA		4
-#define SrvoB		3
-
-// ATTiny Pins for various uses
-#define AttTrig0	8
-#define AttTrig1	10
-#define AttTrig2	11
-#define AttTrig3	12
-#define AttTrig4	7
-
-// Analog Inputs
-#define RMeas		0		// Analog Pin 0, Digital 14
-#define TempSense	1		// Analog Pin 1, Digital 15
-
-// Shift Register Pins
-#define DAT0		17
-#define SCLK0		20
-#define LCLK0		21
-#define OE0		22
-#define RST0		23
-
-// I2C Pins
-#define SDA		18
-#define SCL		19
-
-// I2C Slave Channels
-#define FeedController 1
-#define SortController 2
+#include "ProgmemData.h"
 
 // Declaring Servos. ContactArm presses contacts onto resistors for measurement, SwingArm releases and retains resistors.
 PWMServo ContactArm;
@@ -57,15 +26,6 @@ const int srCount = 2;
 
 // Declaring the Shift Register stack.
 ShiftRegister74HC595 ShiftReg(srCount, DAT0, SCLK0, LCLK0);
-
-// Constants for Moving Servos
-const int contactHome = 45;
-const int contactTouch = 5;
-const int contactPress = 0;
-const int contactTime = 15;	// How long (in millis) does it take to move from Home to Touch?
-const int swingHome = 180;
-const int swingOpen = 130;
-const int swingTime = 15;	// How long (in millis) does it take to move from Home to Open?
 
 // Shift register states
 const uint8_t srState[10][srCount] = {
@@ -89,6 +49,18 @@ uint8_t resistorQueue = {B00000000};
 volatile bool feedInProcess = false;
 volatile bool sortMotionInProcess = false;
 
+// State Machine Variable
+// Possible States:
+	//	00	Waiting for Mode Set (RPi Command)
+	//	01	Ready for next resistor
+	//	02	Measurement
+	//	04	Dispense
+	//	05	Cycling through to end
+volatile int cState = 0;
+
+// Sort Mode from RPi
+int cMode = 0;
+
 void setup() {
 	// Init Servos
 	ContactArm.attach(SrvoA);
@@ -101,7 +73,7 @@ void setup() {
 	// Setting up various pins
 	pinMode(OE0, OUTPUT);
 	pinMode(RST0, OUTPUT);
-	pinMode(AttTrig0, INPUT);
+	pinMode(AttTrig0, INPUT);	// Trigger from Sort Controller indicating last command completed successfully
 	pinMode(AttTrig1, OUTPUT);
 	pinMode(AttTrig2, OUTPUT);
 	pinMode(AttTrig3, INPUT);	// Trigger from Feed Controller indicating last command completed successfully
@@ -123,15 +95,32 @@ void setup() {
 	// Begin Serial comms with RPi
 	Serial.begin(9600);
 	Serial.println("RDY");
-
-
-
 }
 
 void loop() {
 
-	/* add main program code here */
-
+	// The loop is a state machine, the action the system takes depends on what state it is in.
+	switch (cState) {
+		
+		case 0:
+		// Waiting for Mode Set (RPi Command)
+			if (Serial.available() > 0) {
+				cMode = Serial.parseInt();
+				if (cMode < 0 || cMode > 4) {
+					Serial.println("X");
+					cMode = 0;
+				} else {
+					Serial.println("ACK");
+					setNewModeState(cMode);
+				}
+			}
+			break;
+		
+		case 1:
+		// Ready for next resistor
+			//TODO: rest of case logic
+			break;
+	}
 }
 
 void isrFeedClear() {
@@ -140,6 +129,10 @@ void isrFeedClear() {
 
 void isrWheelClear() {
 	sortMotionInProcess = false;
+}
+
+void setNewModeState(int newMode) {
+	// TODO: Set State from new Mode command
 }
 
 void clearRegisters() {
@@ -174,7 +167,7 @@ int cycleFeed(int count) {
 	bool isClear = true;
 
 	// Only cycle feed if the test platform is clear. Bit 4 of the queue is the test platform.
-	for (int i = 5 - count; i = 0; i--) {
+	for (int i = (5 - count); i > 0; i--) {
 		if (bitRead(resistorQueue, i) == true) {
 			isClear = false;
 		}
@@ -193,7 +186,7 @@ int cycleFeed(int count) {
 	feedInProcess = true;
 
 	// Update the internal representation of the feed queue.
-	resistorQueue << count;
+	resistorQueue = resistorQueue << count;
 
 	return(0);
 
