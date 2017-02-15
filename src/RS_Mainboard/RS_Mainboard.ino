@@ -192,6 +192,16 @@ int cycleFeed(int count) {
 
 }
 
+double measureResistor() {
+	//TODO. This function should check if the test platform is occupied, then bring the test arm to contact the resistor. 
+		// Determine an algorithm for checking if contact is positively made.
+		// If contact is not made, bring the test arm to push on the contact
+		// If contact is still not made, reject the resistor.
+		// Determine algorithm to cycle through ranges until the range with the value closest to center is found.
+		// Measure and convert to Ohms the value at that range
+		// Return the Ohms value.
+}
+
 int dispenseResistor() {
 	// This function is triggered when the system kicks a resistor out into a cup.
 	// A result of 0 indicates success. Any other result indicates failure.
