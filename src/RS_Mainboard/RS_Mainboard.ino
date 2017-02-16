@@ -61,6 +61,9 @@ volatile int cState = 0;
 // Sort Mode from RPi
 int cMode = 0;
 
+// Maximum Analog Value, calculated at setup.
+int maxAnalog = 0;
+
 void setup() {
 	// Init Servos
 	ContactArm.attach(SrvoA);
@@ -91,6 +94,12 @@ void setup() {
 
 	// I2C Wire init
 	Wire.begin();
+	
+	// Enable External AREF
+	analogReference(EXTERNAL);
+	analogReadResolution(bitPrecision);
+	analogReadAveraging(16);					// Average 16 reads at ADC for result.
+	maxAnalog = pow(2, bitPrecision) - 1;		// Max value 4095 for 12 bits
 
 	// Begin Serial comms with RPi
 	Serial.begin(9600);
@@ -166,7 +175,7 @@ int cycleFeed(int count) {
 
 	bool isClear = true;
 
-	// Only cycle feed if the test platform is clear. Bit 4 of the queue is the test platform.
+	// Only cycle feed if the test platform is clear. Bits 0-4 of the queue are the feed states.
 	for (int i = (5 - count); i > 0; i--) {
 		if (bitRead(resistorQueue, i) == true) {
 			isClear = false;
@@ -193,13 +202,63 @@ int cycleFeed(int count) {
 }
 
 double measureResistor() {
-	//TODO. This function should check if the test platform is occupied, then bring the test arm to contact the resistor. 
-		// Determine an algorithm for checking if contact is positively made.
-		// If contact is not made, bring the test arm to push on the contact
-		// If contact is still not made, reject the resistor.
-		// Determine algorithm to cycle through ranges until the range with the value closest to center is found.
-		// Measure and convert to Ohms the value at that range
-		// Return the Ohms value.
+	// This function completes a full measurement cycle and returns a resistance in Ohms.
+	// Negative values represent failures, 0.0 represents a rejected resistor.
+	// Checking errors should involve typecasting this to int to avoid issues with floating point precision tests.
+	
+	if (bitRead(resistorQueue, 4) == false) {
+		return(-1.0);
+	}
+	
+	ContactArm.write(contactTouch);
+	delay(contactTime);
+	
+	// TODO: Determine algorithm to check if contact is positively made.
+	bool contactMade = true
+	
+	// If contact is not made, bring the test arm to push on the contact
+	if (!contactMade) {
+		ContactArm.write(contactPress);
+	}
+	
+	// TODO: Determine algorithm to check if contact is positively made.
+	bool contactMade = true
+	
+	// Still no contact? Reject this resistor.
+	if (!contactMade) {
+		return(0.0);
+	}
+	
+	int medianReading = maxAnalog / 2;
+	int cDifference, bestDifference = 99999;	// Arbitrarily large value here to ensure any reading is superior.
+	int bestRange = 0;							// Range 0 is with outputs turned off, a safe fallback in case of failure.
+	int reading, bestReading = 0;
+	
+	// For each range...
+	for (int i = 1, i == 9, i++) {
+		// Enable the outputs for testing this range and take a measurement.
+		ShiftReg.setAll(srState[i]);
+		delay(10);								// 5ms maximum operating time for relays, doubled for safety.
+		reading = analogRead(RMeas);
+		
+		// calculate the difference to center.
+		cDifference = reading - medianReading;
+		cDifference = abs(cDifference);
+		
+		// If this measurement is superior to the current best, take note.
+		if (cDifference < bestDifference) {
+			bestRange = i;
+			bestDifference = cDifference;
+			bestReading = reading;
+		}
+	}
+	
+	// TODO: Convert to Ohms based on bestRange and bestReading.
+	double result = 0.0;
+	
+	
+	// Return the Ohms value.
+	return(result);
 }
 
 int dispenseResistor() {

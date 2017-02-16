@@ -47,6 +47,9 @@ Westcott (shawn.westcott@8tinybits.com).
 // I2C Slave Channels
 	#define FeedController 1
 	#define SortController 2
+	
+// Analog Resolution
+	#define bitPrecision 12
 
 // Constants for Moving Servos
 	extern const int contactHome;
