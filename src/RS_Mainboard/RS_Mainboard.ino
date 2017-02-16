@@ -261,7 +261,7 @@ double measureResistor() {
 	// 6, 7, and 8 are the current source ranges. 0-5 are Volt Divider ranges
 	if (bestRange < 6) {
 		// First, convert the reading to volts. (High voltage for dividers)
-		double vReading = bestReading * (internalTestResistances[bestRange] / avHigh);
+		double vReading = bestReading * (avHigh / maxAnalog);
 		
 		// Voltage divider formula: Vd = Vs * (R / Rt), solving for R gives R = (Rt*Vd)/Vs
 		result = (internalTestResistances[bestRange] * vReading) / avHigh;
@@ -270,7 +270,7 @@ double measureResistor() {
 		bestRange = bestRange - 6;
 
 		//Convert the reading to volts. (Low voltage for current sources)
-		double vReading = bestReading * (internalTestResistances[bestRange] / avLow);
+		double vReading = bestReading * (avLow / maxAnalog);
 
 		// Current source measurement is simple, V=IR, solving for R gives R=V/I
 		result = vReading / internalCurrentSources[bestRange];
