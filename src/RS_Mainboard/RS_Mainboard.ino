@@ -28,7 +28,7 @@ const int srCount = 2;
 ShiftRegister74HC595 ShiftReg(srCount, DAT0, SCLK0, LCLK0);
 
 // Shift register states
-const uint8_t srState[10][srCount] = {
+uint8_t srState[10][srCount] = {
 	{B00000000, B00000000},	// Empty
 	{B10000000, B00000000},	// 10M Range
 	{B01000000, B00000000},	// 1M Range
@@ -99,7 +99,7 @@ void setup() {
 	analogReference(EXTERNAL);
 	analogReadResolution(bitPrecision);
 	analogReadAveraging(16);					// Average 16 reads at ADC for result.
-	maxAnalog = pow(2, bitPrecision) - 1;		// Max value 4095 for 12 bits
+	maxAnalog = pow(2.0, bitPrecision) - 1;		// Max value 4095 for 12 bits
 
 	// Begin Serial comms with RPi
 	Serial.begin(9600);
@@ -214,7 +214,7 @@ double measureResistor() {
 	delay(contactTime);
 	
 	// TODO: Determine algorithm to check if contact is positively made.
-	bool contactMade = true
+	bool contactMade = true;
 	
 	// If contact is not made, bring the test arm to push on the contact
 	if (!contactMade) {
@@ -222,7 +222,7 @@ double measureResistor() {
 	}
 	
 	// TODO: Determine algorithm to check if contact is positively made.
-	bool contactMade = true
+	contactMade = true;
 	
 	// Still no contact? Reject this resistor.
 	if (!contactMade) {
@@ -230,20 +230,20 @@ double measureResistor() {
 	}
 	
 	int medianReading = maxAnalog / 2;
-	int cDifference, bestDifference = 99999;	// Arbitrarily large value here to ensure any reading is superior.
+	int cDifference, bestDifference = 99999;		// Arbitrarily large value here to ensure any reading is superior.
 	int bestRange = 0;							// Range 0 is with outputs turned off, a safe fallback in case of failure.
 	int reading, bestReading = 0;
 	
 	// For each range...
-	for (int i = 1, i == 9, i++) {
+	for (int i = 1; i <= 9; i++) {
 		// Enable the outputs for testing this range and take a measurement.
 		ShiftReg.setAll(srState[i]);
-		delay(10);								// 5ms maximum operating time for relays, doubled for safety.
+		delay(10);							// 5ms maximum operating time for relays, doubled for safety.
 		reading = analogRead(RMeas);
 		
 		// calculate the difference to center.
 		cDifference = reading - medianReading;
-		cDifference = abs(cDifference);
+		cDifference = (cDifference < 0) ? -cDifference : cDifference;	// Absolute value
 		
 		// If this measurement is superior to the current best, take note.
 		if (cDifference < bestDifference) {
