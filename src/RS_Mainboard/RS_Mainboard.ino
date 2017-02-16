@@ -64,6 +64,9 @@ int cMode = 0;
 // Maximum Analog Value, calculated at setup.
 int maxAnalog = 0;
 
+// Current wheel position (10 cups, noted as 0-9 here)
+int curWheelPos = 0;
+
 void setup() {
 	// Init Servos
 	ContactArm.attach(SrvoA);
@@ -140,9 +143,14 @@ void loop() {
 						cycleFeed(1);
 					} else {
 						// Otherwise, measure the resistor, dispense it, and cycle the feed.
-						measureResistor();
+						double resistance = measureResistor();
+						
 						do { ; } while (sortMotionInProcess);		// Wait for sort motions to finish before dispensing.
+						int targetWheelPos = getSortPosition(resistance);
+						moveSort(curWheelPos, targetWheelPos);
+						curWheelPos = targetWheelPos;
 						dispenseResistor();
+						
 						do { ; } while (feedInProcess);			// Wait for any feed in progress to finish before cycling.
 						cycleFeed(1);
 					}
