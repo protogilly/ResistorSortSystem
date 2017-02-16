@@ -104,10 +104,10 @@ void setup() {
 	// Begin Serial comms with RPi
 	Serial.begin(9600);
 	Serial.println("RDY");
+	Serial.flush();
 }
 
 void loop() {
-
 	// The loop is a state machine, the action the system takes depends on what state it is in.
 	switch (cState) {
 		
@@ -127,7 +127,29 @@ void loop() {
 		
 		case 1:
 		// Ready for next resistor
-			//TODO: rest of case logic
+			if (Serial.available() > 0) {
+				String incCmd = Serial.readString();
+
+				// NEXT is the command that indicates the user has pressed the button saying they loaded a resistor.
+				if (incCmd == "NEXT") {
+					feedResistor();
+
+					if (bitRead(resistorQueue, 4) == false) {
+						// If the load platform is empty, cycle the feed.
+						do {	; } while (feedInProcess);			// Wait for any feed in progress to finish before cycling.
+						cycleFeed(1);
+					} else {
+						// Otherwise, measure the resistor, dispense it, and cycle the feed.
+						measureResistor();
+						do { ; } while (sortMotionInProcess);		// Wait for sort motions to finish before dispensing.
+						dispenseResistor();
+						do { ; } while (feedInProcess);			// Wait for any feed in progress to finish before cycling.
+						cycleFeed(1);
+					}
+				}
+
+				if (incCmd == "") {}    // TODO: Finish logic
+			}
 			break;
 	}
 }
