@@ -23,6 +23,12 @@
 	const int swingOpen = 130;
 	const int swingTime = 15;		// How long (in millis) does it take to move from Home to Open?
 
+// Constants for Calibrated Measurements (Voltages, Resistances, Currents)
+	const double avHigh = 3.3;
+	const double avLow = 1.5;
+	const int internalTestResistances[6] = {10000000, 1000000, 100000, 10000, 1000, 100};
+	const double internalCurrentSources[3] = {0.1, 0.02937, 0.01818};
+
 // Standard Resistor values
 
 	// 1% E96 Series

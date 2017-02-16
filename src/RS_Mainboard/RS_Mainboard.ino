@@ -252,10 +252,29 @@ double measureResistor() {
 			bestReading = reading;
 		}
 	}
+
+	// Changing the range to a 0 index instead of a 1 index
+	bestRange--;
 	
-	// TODO: Convert to Ohms based on bestRange and bestReading.
 	double result = 0.0;
-	
+
+	// 6, 7, and 8 are the current source ranges. 0-5 are Volt Divider ranges
+	if (bestRange < 6) {
+		// First, convert the reading to volts. (High voltage for dividers)
+		double vReading = bestReading * (internalTestResistances[bestRange] / avHigh);
+		
+		// Voltage divider formula: Vd = Vs * (R / Rt), solving for R gives R = (Rt*Vd)/Vs
+		result = (internalTestResistances[bestRange] * vReading) / avHigh;
+	} else {
+		// Bring the range down to 0 index from 6-8 index
+		bestRange = bestRange - 6;
+
+		//Convert the reading to volts. (Low voltage for current sources)
+		double vReading = bestReading * (internalTestResistances[bestRange] / avLow);
+
+		// Current source measurement is simple, V=IR, solving for R gives R=V/I
+		result = vReading / internalCurrentSources[bestRange];
+	}
 	
 	// Return the Ohms value.
 	return(result);

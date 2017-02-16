@@ -60,6 +60,12 @@ Westcott (shawn.westcott@8tinybits.com).
 	extern const int swingOpen;
 	extern const int swingTime;		// How long (in millis) does it take to move from Home to Open?
 
+// Constants for Calibrated Measurements (Voltages, Resistances, Currents)
+	extern const double avHigh;
+	extern const double avLow;
+	const int internalTestResistances[6];
+	const double internalCurrentSources[3];
+
 // Standard Resistor values
 
 // 1% E96 Series
