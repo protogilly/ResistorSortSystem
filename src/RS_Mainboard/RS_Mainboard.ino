@@ -147,7 +147,7 @@ void loop() {
 						
 						do { ; } while (sortMotionInProcess);		// Wait for sort motions to finish before dispensing.
 						int targetWheelPos = getSortPosition(resistance);
-						moveSort(curWheelPos, targetWheelPos);
+						moveSort(targetWheelPos - curWheelPos);
 						curWheelPos = targetWheelPos;
 						dispenseResistor();
 						
@@ -187,6 +187,27 @@ void clearRegisters() {
 	digitalWrite(LCLK0, HIGH);
 	delay(1);
 	digitalWrite(LCLK0, LOW);
+}
+
+int moveSort(int count) {
+	// This function triggers a sort move and updates the internal representation accordingly.
+	// A result of 0 indicates success. Any other result indicates failure.
+
+	// Only move if the sort wheel is not currently running
+	if (sortMotionInProcess) {
+		return(-1);
+	}
+
+	// Send the number of cup positions to the Sort Controller.
+	Wire.beginTransmission(FeedController);
+	Wire.write(count);
+	Wire.endTransmission();
+
+	// Note that a sort is in process, we will not send additional move commands until finished.
+	sortMotionInProcess = true;
+
+	return(0);
+
 }
 
 int cycleFeed(int count) {
