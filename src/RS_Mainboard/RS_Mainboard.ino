@@ -12,14 +12,19 @@
 */
 
 #include <Arduino.h>
+#include <Wire.h>
 #include <PWMServo.h>
 #include <ShiftRegister74HC595.h>		// See: http://shiftregister.simsso.de/
-#include <Wire.h>
+
 #include "ProgmemData.h"
+#include "SortWheel.h"
 
 // Declaring Servos. ContactArm presses contacts onto resistors for measurement, SwingArm releases and retains resistors.
 PWMServo ContactArm;
 PWMServo SwingArm;
+
+// Init the SortWheel object
+SortWheel Wheel(cupCount, SortController);
 
 // Number of shift registers in circuit
 const int srCount = 2;
@@ -49,23 +54,14 @@ uint8_t resistorQueue = {B00000000};
 volatile bool feedInProcess = false;
 volatile bool sortMotionInProcess = false;
 
+// Maximum Analog Value, calculated at setup.
+int maxAnalog = 0;
+
 // State Machine Variable
-// Possible States:
-	//	00	Waiting for Mode Set (RPi Command)
-	//	01	Ready for next resistor
-	//	02	Measurement
-	//	04	Dispense
-	//	05	Cycling through to end
 volatile int cState = 0;
 
 // Sort Mode from RPi
 int cMode = 0;
-
-// Maximum Analog Value, calculated at setup.
-int maxAnalog = 0;
-
-// Current wheel position (10 cups, noted as 0-9 here)
-int curWheelPos = 0;
 
 void setup() {
 	// Init Servos
@@ -113,7 +109,6 @@ void setup() {
 void loop() {
 	// The loop is a state machine, the action the system takes depends on what state it is in.
 	switch (cState) {
-		
 		case 0:
 		// Waiting for Mode Set (RPi Command)
 			if (Serial.available() > 0) {
@@ -135,32 +130,34 @@ void loop() {
 
 				// NEXT is the command that indicates the user has pressed the button saying they loaded a resistor.
 				if (incCmd == "NEXT") {
-					feedResistor();
-
-					if (bitRead(resistorQueue, 4) == false) {
-						// If the load platform is empty, cycle the feed.
-						do {	; } while (feedInProcess);			// Wait for any feed in progress to finish before cycling.
-						cycleFeed(1);
-					} else {
-						// Otherwise, measure the resistor, dispense it, and cycle the feed.
-						double resistance = measureResistor();
-						
-						do { ; } while (sortMotionInProcess);		// Wait for sort motions to finish before dispensing.
-						int targetWheelPos = getSortPosition(resistance);
-						moveSort(targetWheelPos - curWheelPos);
-						curWheelPos = targetWheelPos;
-						dispenseResistor();
-						
-						do { ; } while (feedInProcess);			// Wait for any feed in progress to finish before cycling.
-						cycleFeed(1);
-					}
+					//if (true) {};
+					cState = 2;
 				}
 
-				if (incCmd == "") {}    // TODO: Finish logic
+				if (incCmd == "") {}    // TODO: Finish logic (QUIT, ETC?)
 			}
 			break;
+
+		case 2:
+		// New Resistor Placed
 	}
 }
+
+/*
+feedResistor();
+
+if (bitRead(resistorQueue, 4) == true) {
+// If the measurement platform has a resistor, measure and dispense first.
+double resistance = measureResistor();
+
+int targetWheelPos = getSortPosition(resistance);
+Wheel.moveTo(targetWheelPos);
+dispenseResistor();
+
+do { ; } while (feedInProcess);			// Wait for any feed in progress to finish before cycling.
+cycleFeed(1);
+}
+*/
 
 void isrFeedClear() {
 	feedInProcess = false;
@@ -187,27 +184,6 @@ void clearRegisters() {
 	digitalWrite(LCLK0, HIGH);
 	delay(1);
 	digitalWrite(LCLK0, LOW);
-}
-
-int moveSort(int count) {
-	// This function triggers a sort move and updates the internal representation accordingly.
-	// A result of 0 indicates success. Any other result indicates failure.
-
-	// Only move if the sort wheel is not currently running
-	if (sortMotionInProcess) {
-		return(-1);
-	}
-
-	// Send the number of cup positions to the Sort Controller.
-	Wire.beginTransmission(FeedController);
-	Wire.write(count);
-	Wire.endTransmission();
-
-	// Note that a sort is in process, we will not send additional move commands until finished.
-	sortMotionInProcess = true;
-
-	return(0);
-
 }
 
 int cycleFeed(int count) {
