@@ -11,6 +11,7 @@
 
 */
 
+#include "StepFeed.h"
 #include <Arduino.h>
 #include "ProgmemData.h"
 
@@ -24,8 +25,9 @@
 PWMServo ContactArm;
 PWMServo SwingArm;
 
-// Init the SortWheel object
+// Init the SortWheel and StepFeed objects
 SortWheel Wheel(cupCount, SortController);
+StepFeed Feed(FeedController);
 
 // Number of shift registers in circuit
 const int srCount = 2;
@@ -47,10 +49,6 @@ uint8_t srState[10][srCount] = {
 	{B00000000, B11000000} 	// 18.18mA Source
 };
 
-// The resistor queue is represented internally by a collection of bits. 0 indicates no resistor in this position, while 1 indicates a resistor.
-// The LSB represents where the user feeds a resistor into the system, and bit 4 indicates the test platform. Bits 5-7 are ignored.
-uint8_t resistorQueue = {B00000000};
-
 // These variables keep track of states of slave processors.
 volatile bool feedInProcess = false;
 volatile bool sortMotionInProcess = false;
@@ -63,6 +61,9 @@ volatile int cState = 0;
 
 // Sort Mode from RPi
 int cMode = 0;
+
+// Global rep of measurement data
+double measurement = 0.0;
 
 void setup() {
 	// Init Servos
@@ -115,50 +116,87 @@ void loop() {
 			if (Serial.available() > 0) {
 				cMode = Serial.parseInt();
 				if (cMode < 0 || cMode > 4) {
-					Serial.println("X");
+					sendError("Invalid Mode");
 					cMode = 0;
 				} else {
 					Serial.println("ACK");
 					setNewModeState(cMode);
 				}
 			}
+
 			break;
 		
 		case 1:
-		// Ready for next resistor
+		// Ready for next Resistor Load Command
 			if (Serial.available() > 0) {
 				String incCmd = Serial.readString();
 
 				// NEXT is the command that indicates the user has pressed the button saying they loaded a resistor.
 				if (incCmd == "NEXT") {
-					//if (true) {};
-					cState = 2;
+					if (feedInProcess) {
+						sendError("Feed In Process");
+					} else if (!Feed.loadPlatformEmpty()) {
+						sendError("Load Platform Not Empty");
+					} else {
+						Feed.load();
+						cState = 2;		// Feed Process
+					}
 				}
 
-				if (incCmd == "") {}    // TODO: Finish logic (QUIT, ETC?)
+				if (incCmd == "END") {
+					cState = 10;			// Feed Until End
+				}    // TODO: Finish logic (QUIT, ETC?)
 			}
+
 			break;
 
 		case 2:
-		// New Resistor Placed
+		// Resistor Feeding
+			if (Feed.loadPlatformEmpty() && !feedInProcess) {
+				// If the load platform has been emptied and the feed is finished, send the ready.
+				Serial.println("RDY");
+				cState = 1;				// Ready for next command
+			}
+
+			if (!Feed.loadPlatformEmpty()) {
+				// If the platform hasn't been emptied, we either need to measure a resistor to clear room or we need to start a feed.
+				if (!Feed.measurePlatformEmpty()) {
+					cState = 3;			// Measure Resistor
+				} else {
+					Feed.cycleFeed(1);
+					feedInProcess = true;
+				}
+			}	// Only other option is if we aren't done feeding, no changes during this time. Fall through.
+
+			break;
+
+		case 3:
+		// Measure Resistor
+			if (!Feed.measurePlatformEmpty()) {
+				// If the measurement platform isn't empty, measure the resistor
+				measurement = measureResistor();
+
+				// Get the target cup and begin the sort motion
+				int targetSortPos = getTargetCup(cMode, measurement);
+				Wheel.moveTo(targetSortPos);
+				sortMotionInProcess = true;
+				cState = 4;				// Dispense Resistor
+			} else {
+				// If it's empty, we either need to go back to feeding or attempt dispense again.
+				if (sortMotionInProcess) {
+					cState = 4;			// Dispense Resistor
+				} else {
+					cState = 2;			// Feed Process
+				}
+			}
+
+			break;
+
+		case 4:
+		// Dispense Resistor
+
 	}
 }
-
-/*
-feedResistor();
-
-if (bitRead(resistorQueue, 4) == true) {
-// If the measurement platform has a resistor, measure and dispense first.
-double resistance = measureResistor();
-
-int targetWheelPos = getSortPosition(resistance);
-Wheel.moveTo(targetWheelPos);
-dispenseResistor();
-
-do { ; } while (feedInProcess);			// Wait for any feed in progress to finish before cycling.
-cycleFeed(1);
-}
-*/
 
 void isrFeedClear() {
 	feedInProcess = false;
@@ -166,6 +204,14 @@ void isrFeedClear() {
 
 void isrWheelClear() {
 	sortMotionInProcess = false;
+}
+
+void sendError(String err) {
+	// Sends an error to the RPi
+
+	Serial.println("ERR");
+	Serial.println(err);
+	Serial.flush();
 }
 
 void setNewModeState(int newMode) {
@@ -187,56 +233,9 @@ void clearRegisters() {
 	digitalWrite(LCLK0, LOW);
 }
 
-int cycleFeed(int count) {
-	// This function triggers a feed cycle and updates the internal representation accordingly.
-	// A result of 0 indicates success. Any other result indicates failure.
-
-	// Only feed if the count requested is reasonable (no feeding more than 4 positions, no feeding 0 or less positions)
-	if (count > 4 || count < 0) {
-		return(-1);
-	}
-
-	// Only feed if the feed is not currently running
-	if (feedInProcess) {
-		return(-2);
-	}
-
-	bool isClear = true;
-
-	// Only cycle feed if the test platform is clear. Bits 0-4 of the queue are the feed states.
-	for (int i = (5 - count); i > 0; i--) {
-		if (bitRead(resistorQueue, i) == true) {
-			isClear = false;
-		}
-	}
-
-	if (!isClear) {
-		return(-3);
-	}
-
-	// Send the number of cycles to the Feed Controller.
-	Wire.beginTransmission(FeedController);
-	Wire.write(count);
-	Wire.endTransmission();
-
-	// Note that a feed is in process, we will not send additional feed commands until finished.
-	feedInProcess = true;
-
-	// Update the internal representation of the feed queue.
-	resistorQueue = resistorQueue << count;
-
-	return(0);
-
-}
-
 double measureResistor() {
 	// This function completes a full measurement cycle and returns a resistance in Ohms.
-	// Negative values represent failures, 0.0 represents a rejected resistor.
-	// Checking errors should involve typecasting this to int to avoid issues with floating point precision tests.
-	
-	if (bitRead(resistorQueue, 4) == false) {
-		return(-1.0);
-	}
+	// 0.0 represents a rejected resistor.
 	
 	ContactArm.write(contactTouch);
 	delay(contactTime);
@@ -308,35 +307,17 @@ double measureResistor() {
 	return(result);
 }
 
-int dispenseResistor() {
-	// This function is triggered when the system kicks a resistor out into a cup.
-	// A result of 0 indicates success. Any other result indicates failure.
+int getTargetCup(int measurementMode, double measurement) {
+	//TODO: Complete Target Cup determination
+	return(0);
+}
 
-	// Only dispense if the test platform contains a resistor.
-	if (bitRead(resistorQueue, 4) == false) {
-		return(-1);
-	}
-
+void cycleSwingArm() {
+	// This function completes a swingArm cycle.
+	
 	SwingArm.write(swingOpen);
 	delay(swingTime);			// actual delay here, since we shouldn't move or process anything else until we're sure this is clear.
 	SwingArm.write(swingHome);
-
-	resistorQueue = resistorQueue & B11101111;	// Set bit 4 (Test Platform) low.
-
-	return(0);
-
-}
-
-int feedResistor() {
-	// This function is triggered when the user loads a resistor into the system.
-	// A result of 0 indicates success. Any other result indicates failure.
-
-	// resistorQueue will be even if the load platform is cleared. Only add a new resistor if the platform is clear.
-	if (resistorQueue % 2 == 0) {
-		resistorQueue = resistorQueue | B00000001;		// Set the LSB (load platform) high
-		return(0);
-	} else {
-		return(-1);
-	}
+	delay(swingTime);
 
 }
