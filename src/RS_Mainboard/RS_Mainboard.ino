@@ -12,11 +12,12 @@
 */
 
 #include <Arduino.h>
+#include "ProgmemData.h"
+
 #include <Wire.h>
 #include <PWMServo.h>
 #include <ShiftRegister74HC595.h>		// See: http://shiftregister.simsso.de/
 
-#include "ProgmemData.h"
 #include "SortWheel.h"
 
 // Declaring Servos. ContactArm presses contacts onto resistors for measurement, SwingArm releases and retains resistors.
