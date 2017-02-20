@@ -41,22 +41,20 @@ class SortCup {
 		SortCup();
 	
 		// Constructor -- needs a min, max, and nominal. (Not Reject)
-		SortCup(double nominal, double minValue, double maxValue);
+		SortCup(double minValue, double maxValue);
 
-		// Constructor -- Min and max are determined via precision. (Not Reject)
-		SortCup(double nominal, double precision);
+		// Constructor -- Min and max are determined via precision (Given as a whole number percentage). (Not Reject)
+		SortCup(double nominal, int precision);
 
-		double getNominal();
 		double getMin();
 		double getMax();
 		bool canAccept(double value);
 		bool isReject();
 		void setRejectState(bool state);
-		void setCupRange(double nominalValue, double minValue, double maxValue);
-		void setCupRange(double nominalValue, double precision);
+		void setCupRange(double minValue, double maxValue);
+		void setCupRange(double nominalValue, int precision);
 
 	private:
-		double _nomVal;
 		double _minVal;
 		double _maxVal;
 		bool _rejectCup;
