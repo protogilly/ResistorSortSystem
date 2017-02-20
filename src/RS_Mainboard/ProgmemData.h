@@ -1,8 +1,3 @@
-#ifndef ProgmemData
-#define ProgmemData
-
-#include "Arduino.h"
-
 /*
 ProgmemData.h - Variable declarations for the Resistor Sortation Project
 Created by Shawn Westcott (www.8tinybits.com), Feb 2017.
@@ -17,6 +12,11 @@ Westcott (shawn.westcott@8tinybits.com).
 */
 
 // Pin Definitions. These follow the naming conventions on the Schematics and PCB.
+
+#ifndef ProgmemData
+#define ProgmemData 1
+
+#include "Arduino.h"
 
 // Servo Control Pins
 	#define SrvoA		4
@@ -47,6 +47,12 @@ Westcott (shawn.westcott@8tinybits.com).
 // I2C Slave Channels
 	#define FeedController 1
 	#define SortController 2
+	
+// Analog Resolution
+	#define bitPrecision 12
+
+// Number of Cups on wheel
+	#define cupCount 10
 
 // Constants for Moving Servos
 	extern const int contactHome;
@@ -56,6 +62,12 @@ Westcott (shawn.westcott@8tinybits.com).
 	extern const int swingHome;
 	extern const int swingOpen;
 	extern const int swingTime;		// How long (in millis) does it take to move from Home to Open?
+
+// Constants for Calibrated Measurements (Voltages, Resistances, Currents)
+	extern const double avHigh;
+	extern const double avLow;
+	const long internalTestResistances[6];
+	const double internalCurrentSources[3];
 
 // Standard Resistor values
 

@@ -81,10 +81,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ProgmemData.h" />
+    <ClInclude Include="SortWheel.h" />
+    <ClInclude Include="StepFeed.h" />
     <ClInclude Include="__vm\.RS_Mainboard.vsarduino.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ProgmemData.cpp" />
+    <ClCompile Include="SortWheel.cpp" />
+    <ClCompile Include="StepFeed.cpp" />
   </ItemGroup>
   <PropertyGroup>
     <DebuggerFlavor>VisualMicroDebugger</DebuggerFlavor>

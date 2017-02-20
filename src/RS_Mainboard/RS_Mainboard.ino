@@ -12,14 +12,22 @@
 */
 
 #include <Arduino.h>
-#include <PWMServo.h>
-#include <ShiftRegister74HC595.h>		// See: http://shiftregister.simsso.de/
-#include <Wire.h>
 #include "ProgmemData.h"
+
+#include <PWMServo.h>
+#include <Wire.h>
+#include <ShiftRegister74HC595.h>		// See: http://shiftregister.simsso.de/
+
+#include "StepFeed.h"
+#include "SortWheel.h"
 
 // Declaring Servos. ContactArm presses contacts onto resistors for measurement, SwingArm releases and retains resistors.
 PWMServo ContactArm;
 PWMServo SwingArm;
+
+// Init the SortWheel and StepFeed objects
+SortWheel Wheel(cupCount, SortController);
+StepFeed Feed(FeedController);
 
 // Number of shift registers in circuit
 const int srCount = 2;
@@ -28,7 +36,7 @@ const int srCount = 2;
 ShiftRegister74HC595 ShiftReg(srCount, DAT0, SCLK0, LCLK0);
 
 // Shift register states
-const uint8_t srState[10][srCount] = {
+uint8_t srState[10][srCount] = {
 	{B00000000, B00000000},	// Empty
 	{B10000000, B00000000},	// 10M Range
 	{B01000000, B00000000},	// 1M Range
@@ -41,25 +49,26 @@ const uint8_t srState[10][srCount] = {
 	{B00000000, B11000000} 	// 18.18mA Source
 };
 
-// The resistor queue is represented internally by a collection of bits. 0 indicates no resistor in this position, while 1 indicates a resistor.
-// The LSB represents where the user feeds a resistor into the system, and bit 4 indicates the test platform. Bits 5-7 are ignored.
-uint8_t resistorQueue = {B00000000};
+SortCup Cups[cupCount];
 
 // These variables keep track of states of slave processors.
 volatile bool feedInProcess = false;
 volatile bool sortMotionInProcess = false;
 
+// Maximum Analog Value, calculated at setup.
+int maxAnalog = 0;
+
 // State Machine Variable
-// Possible States:
-	//	00	Waiting for Mode Set (RPi Command)
-	//	01	Ready for next resistor
-	//	02	Measurement
-	//	04	Dispense
-	//	05	Cycling through to end
 volatile int cState = 0;
 
 // Sort Mode from RPi
 int cMode = 0;
+
+// Global rep of measurement data
+double measurement = 0.0;
+
+// Bool set when feeding out the remainder of the feed stack
+bool feedToEnd = false;
 
 void setup() {
 	// Init Servos
@@ -91,35 +100,132 @@ void setup() {
 
 	// I2C Wire init
 	Wire.begin();
+	
+	// Enable External AREF
+	analogReference(EXTERNAL);
+	analogReadResolution(bitPrecision);
+	analogReadAveraging(16);					// Average 16 reads at ADC for result.
+	maxAnalog = pow(2.0, bitPrecision) - 1;		// Max value 4095 for 12 bits
 
 	// Begin Serial comms with RPi
 	Serial.begin(9600);
 	Serial.println("RDY");
+	Serial.flush();
 }
 
 void loop() {
-
 	// The loop is a state machine, the action the system takes depends on what state it is in.
 	switch (cState) {
-		
 		case 0:
 		// Waiting for Mode Set (RPi Command)
 			if (Serial.available() > 0) {
 				cMode = Serial.parseInt();
 				if (cMode < 0 || cMode > 4) {
-					Serial.println("X");
+					sendError("Invalid Mode");
 					cMode = 0;
 				} else {
 					Serial.println("ACK");
 					setNewModeState(cMode);
 				}
 			}
+
 			break;
 		
 		case 1:
-		// Ready for next resistor
-			//TODO: rest of case logic
+		// Ready for next Resistor Load Command
+			if (Serial.available() > 0) {
+				String incCmd = Serial.readString();
+
+				// NEXT is the command that indicates the user has pressed the button saying they loaded a resistor.
+				if (incCmd == "NEXT") {
+					if (feedInProcess) {
+						sendError("Feed In Process");
+					} else if (!Feed.loadPlatformEmpty()) {
+						sendError("Load Platform Not Empty");
+					} else {
+						Feed.load();
+						cState = 2;		// Feed Process
+					}
+				}
+
+				if (incCmd == "END") {
+					feedToEnd = true;
+					cState = 2;			// Feed Process
+				}
+			}
+
 			break;
+
+		case 2:
+		// Resistor Feeding
+			if (Feed.loadPlatformEmpty()) {
+				// If the feed platform is empty, but we're in a motion, wait.
+				if (feedInProcess) {
+					break;
+				}
+
+				// If we're not feeding to the end after waiting, we're clear for a new command.
+				if (!feedToEnd) {
+					Serial.println("RDY");
+					cState = 1;		// Ready for next command
+					break;
+				}
+			}
+
+			// Because of breaks, we only get to this point if the load platform is full.
+			// Structuring in this way allows a states where we are feeding to the end to fall through to this point.
+
+			if (!Feed.measurePlatformEmpty()) {
+				// If the measurement platform is full, we have to handle that first.
+				cState = 3;				// Measure Resistor
+			} else {
+				if (Feed.feedEmpty()) {
+					// If the feed is empty, we must be ready.
+					Serial.println("RDY");
+					cState = 1;			// Ready for next command
+				} else {
+					// Otherwise, cycle the feed and mark the motion in process.
+					Feed.cycleFeed(1);
+					feedInProcess = true;
+				}
+			}
+
+			break;
+
+		case 3:
+		// Measure Resistor
+			if (!Feed.measurePlatformEmpty()) {
+				// If the measurement platform isn't empty, measure the resistor
+				measurement = measureResistor();
+
+				// Get the target cup and begin the sort motion
+				int targetSortPos = getTargetCup(measurement);
+				Wheel.moveTo(targetSortPos);
+				sortMotionInProcess = true;
+				cState = 4;				// Dispense Resistor
+			} else {
+				// If it's empty, we either need to go back to feeding or attempt dispense again.
+				if (sortMotionInProcess) {
+					cState = 4;			// Dispense Resistor
+				} else {
+					cState = 2;			// Feed Process
+				}
+			}
+
+			break;
+
+		case 4:
+		// Dispense Resistor
+			if (!sortMotionInProcess) {
+				// A dispense state occurs after a sort motion has begun. Wait for the sort motion to complete and dispense. EZPZ.
+				SwingArm.write(swingOpen);
+				delay(swingTime);			// actual delay here, since we shouldn't move or process anything else until we're sure this is clear.
+				Feed.dispense();
+				SwingArm.write(swingHome);
+				delay(swingTime);
+				cState = 2;				// Feed Process
+			}
+
 	}
 }
 
@@ -129,6 +235,14 @@ void isrFeedClear() {
 
 void isrWheelClear() {
 	sortMotionInProcess = false;
+}
+
+void sendError(String err) {
+	// Sends an error to the RPi
+
+	Serial.println("ERR");
+	Serial.println(err);
+	Serial.flush();
 }
 
 void setNewModeState(int newMode) {
@@ -150,77 +264,96 @@ void clearRegisters() {
 	digitalWrite(LCLK0, LOW);
 }
 
-int cycleFeed(int count) {
-	// This function triggers a feed cycle and updates the internal representation accordingly.
-	// A result of 0 indicates success. Any other result indicates failure.
-
-	// Only feed if the count requested is reasonable (no feeding more than 4 positions, no feeding 0 or less positions)
-	if (count > 4 || count < 0) {
-		return(-1);
+double measureResistor() {
+	// This function completes a full measurement cycle and returns a resistance in Ohms.
+	// 0.0 represents a rejected resistor.
+	
+	ContactArm.write(contactTouch);
+	delay(contactTime);
+	
+	// TODO: Determine algorithm to check if contact is positively made.
+	bool contactMade = true;
+	
+	// If contact is not made, bring the test arm to push on the contact
+	if (!contactMade) {
+		ContactArm.write(contactPress);
 	}
-
-	// Only feed if the feed is not currently running
-	if (feedInProcess) {
-		return(-2);
+	
+	// TODO: Determine algorithm to check if contact is positively made.
+	contactMade = true;
+	
+	// Still no contact? Reject this resistor.
+	if (!contactMade) {
+		return(0.0);
 	}
-
-	bool isClear = true;
-
-	// Only cycle feed if the test platform is clear. Bit 4 of the queue is the test platform.
-	for (int i = (5 - count); i > 0; i--) {
-		if (bitRead(resistorQueue, i) == true) {
-			isClear = false;
+	
+	int medianReading = maxAnalog / 2;
+	int cDifference, bestDifference = 99999;		// Arbitrarily large value here to ensure any reading is superior.
+	int bestRange = 0;							// Range 0 is with outputs turned off, a safe fallback in case of failure.
+	int reading, bestReading = 0;
+	
+	// For each range...
+	for (int i = 1; i <= 9; i++) {
+		// Enable the outputs for testing this range and take a measurement.
+		ShiftReg.setAll(srState[i]);
+		delay(10);							// 5ms maximum operating time for relays, doubled for safety.
+		reading = analogRead(RMeas);
+		
+		// calculate the difference to center.
+		cDifference = reading - medianReading;
+		cDifference = (cDifference < 0) ? -cDifference : cDifference;	// Absolute value
+		
+		// If this measurement is superior to the current best, take note.
+		if (cDifference < bestDifference) {
+			bestRange = i;
+			bestDifference = cDifference;
+			bestReading = reading;
 		}
 	}
 
-	if (!isClear) {
-		return(-3);
-	}
+	// Changing the range to a 0 index instead of a 1 index
+	bestRange--;
+	
+	double result = 0.0;
 
-	// Send the number of cycles to the Feed Controller.
-	Wire.beginTransmission(FeedController);
-	Wire.write(count);
-	Wire.endTransmission();
-
-	// Note that a feed is in process, we will not send additional feed commands until finished.
-	feedInProcess = true;
-
-	// Update the internal representation of the feed queue.
-	resistorQueue = resistorQueue << count;
-
-	return(0);
-
-}
-
-int dispenseResistor() {
-	// This function is triggered when the system kicks a resistor out into a cup.
-	// A result of 0 indicates success. Any other result indicates failure.
-
-	// Only dispense if the test platform contains a resistor.
-	if (bitRead(resistorQueue, 4) == false) {
-		return(-1);
-	}
-
-	SwingArm.write(swingOpen);
-	delay(swingTime);			// actual delay here, since we shouldn't move or process anything else until we're sure this is clear.
-	SwingArm.write(swingHome);
-
-	resistorQueue = resistorQueue & B11101111;	// Set bit 4 (Test Platform) low.
-
-	return(0);
-
-}
-
-int feedResistor() {
-	// This function is triggered when the user loads a resistor into the system.
-	// A result of 0 indicates success. Any other result indicates failure.
-
-	// resistorQueue will be even if the load platform is cleared. Only add a new resistor if the platform is clear.
-	if (resistorQueue % 2 == 0) {
-		resistorQueue = resistorQueue | B00000001;		// Set the LSB (load platform) high
-		return(0);
+	// 6, 7, and 8 are the current source ranges. 0-5 are Volt Divider ranges
+	if (bestRange < 6) {
+		// First, convert the reading to volts. (High voltage for dividers)
+		double vReading = bestReading * (avHigh / maxAnalog);
+		
+		// Voltage divider formula: Vd = Vs * (R / Rt), solving for R gives R = (Rt*Vd)/Vs
+		result = (internalTestResistances[bestRange] * vReading) / avHigh;
 	} else {
-		return(-1);
+		// Bring the range down to 0 index from 6-8 index
+		bestRange = bestRange - 6;
+
+		//Convert the reading to volts. (Low voltage for current sources)
+		double vReading = bestReading * (avLow / maxAnalog);
+
+		// Current source measurement is simple, V=IR, solving for R gives R=V/I
+		result = vReading / internalCurrentSources[bestRange];
+	}
+	
+	// Return the Ohms value.
+	return(result);
+}
+
+int getTargetCup(double measurement) {
+	// This function checks the measurement against every non-reject cup. If a home is found, that cup number is returned.
+	// If no cup is found, a reject cup is selected. If no reject cup is available, an error is thrown.
+
+	for (int i = 0; i < cupCount; i++) {
+		if (Cups[i].canAccept(measurement) && !Cups[i].isReject()) {
+			return(i + 1);
+		}
 	}
 
+	for (int i = 0; i < cupCount; i++) {
+		if (Cups[i].isReject()) {
+			return(i + 1);
+		}
+	}
+
+	sendError("No Reject Cup Found");
+	return(-1);
 }
