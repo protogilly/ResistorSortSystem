@@ -66,7 +66,7 @@ Westcott (shawn.westcott@8tinybits.com).
 // Constants for Calibrated Measurements (Voltages, Resistances, Currents)
 	extern const double avHigh;
 	extern const double avLow;
-	const int internalTestResistances[6];
+	const long internalTestResistances[6];
 	const double internalCurrentSources[3];
 
 // Standard Resistor values

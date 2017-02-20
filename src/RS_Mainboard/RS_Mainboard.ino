@@ -11,14 +11,14 @@
 
 */
 
-#include "StepFeed.h"
 #include <Arduino.h>
 #include "ProgmemData.h"
 
-#include <Wire.h>
 #include <PWMServo.h>
+#include <Wire.h>
 #include <ShiftRegister74HC595.h>		// See: http://shiftregister.simsso.de/
 
+#include "StepFeed.h"
 #include "SortWheel.h"
 
 // Declaring Servos. ContactArm presses contacts onto resistors for measurement, SwingArm releases and retains resistors.
@@ -49,6 +49,8 @@ uint8_t srState[10][srCount] = {
 	{B00000000, B11000000} 	// 18.18mA Source
 };
 
+SortCup Cups[cupCount];
+
 // These variables keep track of states of slave processors.
 volatile bool feedInProcess = false;
 volatile bool sortMotionInProcess = false;
@@ -64,6 +66,9 @@ int cMode = 0;
 
 // Global rep of measurement data
 double measurement = 0.0;
+
+// Bool set when feeding out the remainder of the feed stack
+bool feedToEnd = false;
 
 void setup() {
 	// Init Servos
@@ -144,29 +149,46 @@ void loop() {
 				}
 
 				if (incCmd == "END") {
-					cState = 10;			// Feed Until End
-				}    // TODO: Finish logic (QUIT, ETC?)
+					feedToEnd = true;
+					cState = 2;			// Feed Process
+				}
 			}
 
 			break;
 
 		case 2:
 		// Resistor Feeding
-			if (Feed.loadPlatformEmpty() && !feedInProcess) {
-				// If the load platform has been emptied and the feed is finished, send the ready.
-				Serial.println("RDY");
-				cState = 1;				// Ready for next command
+			if (Feed.loadPlatformEmpty()) {
+				// If the feed platform is empty, but we're in a motion, wait.
+				if (feedInProcess) {
+					break;
+				}
+
+				// If we're not feeding to the end after waiting, we're clear for a new command.
+				if (!feedToEnd) {
+					Serial.println("RDY");
+					cState = 1;		// Ready for next command
+					break;
+				}
 			}
 
-			if (!Feed.loadPlatformEmpty()) {
-				// If the platform hasn't been emptied, we either need to measure a resistor to clear room or we need to start a feed.
-				if (!Feed.measurePlatformEmpty()) {
-					cState = 3;			// Measure Resistor
+			// Because of breaks, we only get to this point if the load platform is full.
+			// Structuring in this way allows a states where we are feeding to the end to fall through to this point.
+
+			if (!Feed.measurePlatformEmpty()) {
+				// If the measurement platform is full, we have to handle that first.
+				cState = 3;				// Measure Resistor
+			} else {
+				if (Feed.feedEmpty()) {
+					// If the feed is empty, we must be ready.
+					Serial.println("RDY");
+					cState = 1;			// Ready for next command
 				} else {
+					// Otherwise, cycle the feed and mark the motion in process.
 					Feed.cycleFeed(1);
 					feedInProcess = true;
 				}
-			}	// Only other option is if we aren't done feeding, no changes during this time. Fall through.
+			}
 
 			break;
 
@@ -177,7 +199,7 @@ void loop() {
 				measurement = measureResistor();
 
 				// Get the target cup and begin the sort motion
-				int targetSortPos = getTargetCup(cMode, measurement);
+				int targetSortPos = getTargetCup(measurement);
 				Wheel.moveTo(targetSortPos);
 				sortMotionInProcess = true;
 				cState = 4;				// Dispense Resistor
@@ -194,6 +216,15 @@ void loop() {
 
 		case 4:
 		// Dispense Resistor
+			if (!sortMotionInProcess) {
+				// A dispense state occurs after a sort motion has begun. Wait for the sort motion to complete and dispense. EZPZ.
+				SwingArm.write(swingOpen);
+				delay(swingTime);			// actual delay here, since we shouldn't move or process anything else until we're sure this is clear.
+				Feed.dispense();
+				SwingArm.write(swingHome);
+				delay(swingTime);
+				cState = 2;				// Feed Process
+			}
 
 	}
 }
@@ -307,17 +338,22 @@ double measureResistor() {
 	return(result);
 }
 
-int getTargetCup(int measurementMode, double measurement) {
-	//TODO: Complete Target Cup determination
-	return(0);
-}
+int getTargetCup(double measurement) {
+	// This function checks the measurement against every non-reject cup. If a home is found, that cup number is returned.
+	// If no cup is found, a reject cup is selected. If no reject cup is available, an error is thrown.
 
-void cycleSwingArm() {
-	// This function completes a swingArm cycle.
-	
-	SwingArm.write(swingOpen);
-	delay(swingTime);			// actual delay here, since we shouldn't move or process anything else until we're sure this is clear.
-	SwingArm.write(swingHome);
-	delay(swingTime);
+	for (int i = 0; i < cupCount; i++) {
+		if (Cups[i].canAccept(measurement) && !Cups[i].isReject()) {
+			return(i + 1);
+		}
+	}
 
+	for (int i = 0; i < cupCount; i++) {
+		if (Cups[i].isReject()) {
+			return(i + 1);
+		}
+	}
+
+	sendError("No Reject Cup Found");
+	return(-1);
 }

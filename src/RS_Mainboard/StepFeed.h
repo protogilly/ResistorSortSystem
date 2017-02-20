@@ -30,6 +30,9 @@ class StepFeed {
 		// Returns the state of the measurement platform.
 		bool measurePlatformEmpty();
 
+		// Returns true when all feed holds empty.
+		bool feedEmpty();
+
 		// Loads a new resistor into the system at the load platform
 		void load();
 		

@@ -67,6 +67,14 @@ bool StepFeed::measurePlatformEmpty() {
 	}
 }
 
+bool StepFeed::feedEmpty() {
+	if (_queue == 0) {
+		return(true);
+	} else {
+		return (false);
+	}
+}
+
 void StepFeed::load() {
 	// Force a 1 into the Load Platform bit.
 	_queue = _queue | B00000001;
