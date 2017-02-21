@@ -51,9 +51,6 @@ Westcott (shawn.westcott@8tinybits.com).
 // Analog Resolution
 	#define bitPrecision 12
 
-// Number of Cups on wheel
-	#define cupCount 10
-
 // Constants for Moving Servos
 	extern const int contactHome;
 	extern const int contactTouch;
@@ -72,12 +69,15 @@ Westcott (shawn.westcott@8tinybits.com).
 // Standard Resistor values
 
 // 1% E96 Series
+	extern const int E96Count;
 	extern const int stdResistors1[96];
 
 // 2% and 5% E24 Series
+	extern const int E24Count;
 	extern const int stdResistors2_5[24];
 
 // 10% E12 Series
+	extern const int E12Count;
 	extern const int stdResistors10[12];
 
 #endif

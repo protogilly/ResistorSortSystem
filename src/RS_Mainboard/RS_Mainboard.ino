@@ -49,8 +49,6 @@ uint8_t srState[10][srCount] = {
 	{B00000000, B11000000} 	// 18.18mA Source
 };
 
-SortCup Cups[cupCount];
-
 // These variables keep track of states of slave processors.
 volatile bool feedInProcess = false;
 volatile bool sortMotionInProcess = false;
@@ -60,9 +58,6 @@ int maxAnalog = 0;
 
 // State Machine Variable
 volatile int cState = 0;
-
-// Sort Mode from RPi
-int cMode = 0;
 
 // Global rep of measurement data
 double measurement = 0.0;
@@ -119,14 +114,15 @@ void loop() {
 		case 0:
 		// Waiting for Mode Set (RPi Command)
 			if (Serial.available() > 0) {
-				cMode = Serial.parseInt();
-				if (cMode < 0 || cMode > 4) {
-					sendError("Invalid Mode");
-					cMode = 0;
-				} else {
-					Serial.println("ACK");
-					setNewModeState(cMode);
-				}
+				String incCmd = Serial.readString();
+
+				// Parse the command
+
+				// Execute the command (Set up cups, return information, or 
+
+
+				// getNewModeState sets up our state and also handles Cup setup.
+				//cState = ???
 			}
 
 			break;
@@ -237,6 +233,14 @@ void isrWheelClear() {
 	sortMotionInProcess = false;
 }
 
+bool cmdReady() {
+	// The first byte of a command will be the number of bytes in the command.
+	bool result = Serial.peek() == Serial.available();
+	return(result);
+}
+
+
+
 void sendError(String err) {
 	// Sends an error to the RPi
 
@@ -245,9 +249,22 @@ void sendError(String err) {
 	Serial.flush();
 }
 
-void setNewModeState(int newMode) {
-	// TODO: Set State from new Mode command
-}
+/*
+case 1:
+// Mode 1 is Major Divisions, powers of 10 with precisions included.
+	for (int i = 0; i < 8; i++) {
+		// For each target cup, give it a min and max corresponding to a power of 10
+		double min = pow(10.0, i);
+		double max = min * 10;
+		min = min - (min * pMultiplier);
+		max = max + (max * pMultiplier);
+		Cups[i].setCupRange(min, max);
+	}
+
+	// State 1, waiting for a resistor
+	return(1);
+	break;
+*/
 
 void clearRegisters() {
 	// This function triggers the reset on the shift registers, then latches the empty register.
@@ -339,18 +356,21 @@ double measureResistor() {
 }
 
 int getTargetCup(double measurement) {
-	// This function checks the measurement against every non-reject cup. If a home is found, that cup number is returned.
-	// If no cup is found, a reject cup is selected. If no reject cup is available, an error is thrown.
-
+	// This function checks the measurement against every non-reject cup. If a home is found, that cup number (not index) is returned.
+	
 	for (int i = 0; i < cupCount; i++) {
-		if (Cups[i].canAccept(measurement) && !Cups[i].isReject()) {
-			return(i + 1);
+		// For each cup, look for a valid home that is not a reject.
+		if (Wheel.cups[i].canAccept(measurement) && !Wheel.cups[i].isReject()) {
+			int result = i + 1;
+			return(result);	// Return that cup.
 		}
 	}
 
 	for (int i = 0; i < cupCount; i++) {
-		if (Cups[i].isReject()) {
-			return(i + 1);
+		// Find the first available reject cup.
+		if (Wheel.cups[i].isReject()) {
+			int result = i + 1;
+			return(result);	// Return that cup.
 		}
 	}
 

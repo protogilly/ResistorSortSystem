@@ -103,7 +103,7 @@ void SortCup::setCupRange(double minValue, double maxValue) {
 }
 
 void SortCup::setCupRange(double nominalValue, int precision) {
-	double range = nominalValue * ((double) precision / 100);
+	double range = nominalValue * ((double) precision / 100.0);
 
 	_minVal = nominalValue - range;
 	_maxVal = nominalValue + range;

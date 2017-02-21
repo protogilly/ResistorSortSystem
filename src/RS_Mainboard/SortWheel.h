@@ -14,6 +14,9 @@ Westcott (shawn.westcott@8tinybits.com).
 #ifndef _SORTWHEEL_h
 #define _SORTWHEEL_h 1
 
+// Number of Cups on wheel
+#define cupCount 10
+
 #include "Arduino.h"
 #include <Wire.h>
 
@@ -27,6 +30,9 @@ class SortWheel {
 
 		// Calculates shortest path to the target and issues a command to the controller.
 		void moveTo(int target);
+
+		// Collection of cups as part of the SortWheel.
+		SortCup cups[cupCount];
 
 	private:
 		int _wireChannel;
