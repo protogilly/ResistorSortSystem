@@ -40,7 +40,7 @@ void loop() {
 			// If we've reached the end of the last motion command, leave motion and send the trigger to the mainboard.
 			inMotion = false;
 			digitalWrite(attTrig0, HIGH);
-			tws_delay(5);
+			tws_delay(5);		// 5ms seems like a long time to trigger an interrupt, but this allows a braking force on the sort wheel to complete.
 			digitalWrite(attTrig0, LOW);
 
 			// Disable Outputs to save power.
@@ -49,6 +49,7 @@ void loop() {
 			sortWheel.run();
 		}
 	}
+	TinyWireS_stop_check();
 }
 
 void receiveEvent(uint8_t uCount) {
