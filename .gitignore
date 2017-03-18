@@ -1,1 +1,7 @@
 *.suo
+*.buildinfo
+*.a
+*.d
+src/Tiny84_SortWheel/Release/Tiny84_SortWheel.cpp.o
+*.elf
+*.hex
