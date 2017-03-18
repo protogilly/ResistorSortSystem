@@ -45,8 +45,8 @@ Westcott (shawn.westcott@8tinybits.com).
 	#define SCL		19
 
 // I2C Slave Channels
-	#define FeedController 1
-	#define SortController 2
+	#define SortController 1	
+	#define FeedController 2
 	
 // Analog Resolution
 	#define bitPrecision 12
