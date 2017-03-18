@@ -29,7 +29,7 @@
 	const long internalTestResistances[6] = {10000000, 1000000, 100000, 10000, 1000, 100};
 	const double internalCurrentSources[3] = {0.1, 0.02937, 0.01818};
 
-// Standard Resistor values
+// Standard Resistor values (all values are different powers of 10 for these numbers)
 
 	// 1% E96 Series
 	const int E96Count = 96;
