@@ -5,3 +5,4 @@
 src/Tiny84_SortWheel/Release/Tiny84_SortWheel.cpp.o
 *.elf
 *.hex
+src/Tiny84_StepFeeder/Release/Tiny84_StepFeeder.cpp.o
