@@ -21,13 +21,6 @@
 #include "StepFeed.h"
 #include "SortWheel.h"
 
-// The struct for incoming and outgoing commands.
-struct Command {
-	String cmd;
-	int numArgs;
-	String args[10];
-};
-
 // Declaring Servos. ContactArm presses contacts onto resistors for measurement, SwingArm releases and retains resistors.
 PWMServo ContactArm;
 PWMServo SwingArm;
@@ -108,7 +101,7 @@ void setup() {
 	
 	// Number of steps per feed action = 115 degrees, 1.8 deg/step = ~64 steps per action.
 	Wire.write(64);
-	Wire.endTransmission;
+	Wire.endTransmission();
 	
 	// Enable External AREF
 	analogReference(EXTERNAL);

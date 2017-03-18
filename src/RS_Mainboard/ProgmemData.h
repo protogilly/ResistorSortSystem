@@ -18,6 +18,13 @@ Westcott (shawn.westcott@8tinybits.com).
 
 #include "Arduino.h"
 
+// The struct for incoming and outgoing commands.
+typedef struct {
+	String cmd;
+	int numArgs;
+	String args[10];
+} Command;
+
 // Servo Control Pins
 	#define SrvoA		4
 	#define SrvoB		3
@@ -63,8 +70,8 @@ Westcott (shawn.westcott@8tinybits.com).
 // Constants for Calibrated Measurements (Voltages, Resistances, Currents)
 	extern const double avHigh;
 	extern const double avLow;
-	const long internalTestResistances[6];
-	const double internalCurrentSources[3];
+	extern const long internalTestResistances[6];
+	extern const double internalCurrentSources[3];
 
 // Standard Resistor values
 

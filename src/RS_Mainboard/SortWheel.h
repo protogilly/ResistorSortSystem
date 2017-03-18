@@ -20,6 +20,32 @@ Westcott (shawn.westcott@8tinybits.com).
 #include "Arduino.h"
 #include <Wire.h>
 
+class SortCup {
+	public:
+	// Default Constructor -- sets all values to 0 and makes the cup a reject cup
+	SortCup();
+
+	// Constructor -- needs a min, max, and nominal. (Not Reject)
+	SortCup(double minValue, double maxValue);
+
+	// Constructor -- Min and max are determined via precision (Given as a whole number percentage). (Not Reject)
+	SortCup(double nominal, int precision);
+
+	double getMin();
+	double getMax();
+	bool canAccept(double value);
+	bool isReject();
+	void setRejectState(bool state);
+	void setCupRange(double minValue, double maxValue);
+	void setCupRange(double nominalValue, int precision);
+
+	private:
+	double _minVal;
+	double _maxVal;
+	bool _rejectCup;
+
+};
+
 class SortWheel {
 	public:
 		// Constructor -- needs the number of cups on the wheel and the Wire channel that the controller is on.
@@ -40,32 +66,5 @@ class SortWheel {
 		int _numCups;
 
 };
-
-class SortCup {
-	public:
-		// Default Constructor -- sets all values to 0 and makes the cup a reject cup
-		SortCup();
-	
-		// Constructor -- needs a min, max, and nominal. (Not Reject)
-		SortCup(double minValue, double maxValue);
-
-		// Constructor -- Min and max are determined via precision (Given as a whole number percentage). (Not Reject)
-		SortCup(double nominal, int precision);
-
-		double getMin();
-		double getMax();
-		bool canAccept(double value);
-		bool isReject();
-		void setRejectState(bool state);
-		void setCupRange(double minValue, double maxValue);
-		void setCupRange(double nominalValue, int precision);
-
-	private:
-		double _minVal;
-		double _maxVal;
-		bool _rejectCup;
-
-};
-
 
 #endif
