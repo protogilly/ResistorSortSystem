@@ -21,7 +21,7 @@
 	const int contactTime = 15;		// How long (in millis) does it take to move from Home to Touch?
 	const int swingHome = 180;
 	const int swingOpen = 130;
-	const int swingTime = 15;		// How long (in millis) does it take to move from Home to Open?
+	const int swingTime = 400;		// How long (in millis) does it take to move from Home to Open?
 
 // Constants for Calibrated Measurements (Voltages, Resistances, Currents)
 	const double avHigh = 3.3;
@@ -29,10 +29,11 @@
 	const long internalTestResistances[6] = {10000000, 1000000, 100000, 10000, 1000, 100};
 	const double internalCurrentSources[3] = {0.1, 0.02937, 0.01818};
 
-// Standard Resistor values
+// Standard Resistor values (all values are different powers of 10 for these numbers)
 
 	// 1% E96 Series
-	const int stdResistors1[96] = {
+	const int E96Count = 96;
+	const int stdResistors1[E96Count] = {
 		100, 102, 105, 107, 110, 113, 115, 118, 121, 124, 127, 130, 133, 137, 140, 143,
 		147, 150, 154, 158, 162, 165, 169, 174, 178, 182, 187, 191, 196, 200, 205, 210,
 		215, 221, 226, 232, 237, 243, 249, 255, 261, 267, 274, 280, 287, 294, 301, 309,
@@ -42,12 +43,14 @@
 	};
 
 	// 2% and 5% E24 Series
-	const int stdResistors2_5[24] = {
+	const int E24Count = 24;
+	const int stdResistors2_5[E24Count] = {
 		100, 110, 120, 130, 150, 160, 180, 200, 220, 240, 270, 300, 330, 360, 390, 430,
 		470, 510, 560, 620, 680, 750, 820, 910
 	};
 
 	// 10% E12 Series
-	const int stdResistors10[12] = {
+	const int E12Count = 12;
+	const int stdResistors10[E12Count] = {
 		100, 120, 150, 180, 220, 270, 330, 390, 470, 560, 680, 820
 	};

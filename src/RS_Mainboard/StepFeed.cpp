@@ -29,7 +29,7 @@ int StepFeed::cycleFeed(int count) {
 	bool isClear = true;
 
 	// Only cycle feed if the steps being fed are clear. Bits 0-4 of the queue are the feed states.
-	for (int i = (5 - count); i > 0; i--) {
+	for (int i = (5 - count); i > 0; i--) {   //TODO: Check this logic.
 		if (bitRead(_queue, i) == true) {
 			isClear = false;
 		}

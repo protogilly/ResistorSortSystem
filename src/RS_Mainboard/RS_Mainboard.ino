@@ -49,8 +49,6 @@ uint8_t srState[10][srCount] = {
 	{B00000000, B11000000} 	// 18.18mA Source
 };
 
-SortCup Cups[cupCount];
-
 // These variables keep track of states of slave processors.
 volatile bool feedInProcess = false;
 volatile bool sortMotionInProcess = false;
@@ -60,9 +58,6 @@ int maxAnalog = 0;
 
 // State Machine Variable
 volatile int cState = 0;
-
-// Sort Mode from RPi
-int cMode = 0;
 
 // Global rep of measurement data
 double measurement = 0.0;
@@ -87,6 +82,7 @@ void setup() {
 	pinMode(AttTrig2, OUTPUT);
 	pinMode(AttTrig3, INPUT);	// Trigger from Feed Controller indicating last command completed successfully
 	pinMode(AttTrig4, OUTPUT);
+  pinMode(ledPin, OUTPUT);
 
 	// AttTrig3 is an interrupt from the slave processor that lets us know the last feed command is complete.
 	attachInterrupt(AttTrig3, isrFeedClear, RISING);
@@ -100,6 +96,15 @@ void setup() {
 
 	// I2C Wire init
 	Wire.begin();
+
+	// Send setup value to StepFeeder controller
+	Wire.beginTransmission(FeedController);
+
+  delay(5);
+	
+	// Number of steps per feed action = 115 degrees, 1.8 deg/step = ~64 steps per action.
+	Wire.write(64);
+	Wire.endTransmission();
 	
 	// Enable External AREF
 	analogReference(EXTERNAL);
@@ -109,51 +114,60 @@ void setup() {
 
 	// Begin Serial comms with RPi
 	Serial.begin(9600);
-	Serial.println("RDY");
-	Serial.flush();
+
+  sendReady();
+	
+	// Wait for the Ready from the RPi.
+	do {
+    ;
+	} while (!cmdReady());
+
+	String incCmd = Serial.readString();
+	Command handshake = parseCmd(incCmd);
+
+	if (handshake.cmd == "RDY") {
+		sendAck();
+	} else {
+		sendError("Inv Handshake on Startup. Halting.");
+		while (1) { ; }	// Something went very wrong. Stop here.
+	}
 }
 
 void loop() {
+
+	Command thisCommand;
+
+	// At the start of every loop, check if a command is waiting.
+	if (cmdReady()) {
+		String incCmd = Serial.readString();
+		Command thisCommand = parseCmd(incCmd);
+	}
+
 	// The loop is a state machine, the action the system takes depends on what state it is in.
 	switch (cState) {
 		case 0:
-		// Waiting for Mode Set (RPi Command)
-			if (Serial.available() > 0) {
-				cMode = Serial.parseInt();
-				if (cMode < 0 || cMode > 4) {
-					sendError("Invalid Mode");
-					cMode = 0;
-				} else {
-					Serial.println("ACK");
-					setNewModeState(cMode);
-				}
-			}
-
+		// Waiting for Mode Set (RPi Command). Do nothing.
 			break;
 		
 		case 1:
 		// Ready for next Resistor Load Command
-			if (Serial.available() > 0) {
-				String incCmd = Serial.readString();
-
-				// NEXT is the command that indicates the user has pressed the button saying they loaded a resistor.
-				if (incCmd == "NEXT") {
-					if (feedInProcess) {
-						sendError("Feed In Process");
-					} else if (!Feed.loadPlatformEmpty()) {
-						sendError("Load Platform Not Empty");
-					} else {
-						Feed.load();
-						cState = 2;		// Feed Process
-					}
-				}
-
-				if (incCmd == "END") {
-					feedToEnd = true;
-					cState = 2;			// Feed Process
+			// NXT is the command that indicates the user has pressed the button saying they loaded a resistor.
+			if (thisCommand.cmd == "NXT") {
+				if (feedInProcess) {
+					sendError("Feed In Process");
+				} else if (!Feed.loadPlatformEmpty()) {
+					sendError("Load Platform Not Empty");
+				} else {
+					Feed.load();
+					cState = 2;		// Feed Process
 				}
 			}
 
+			if (thisCommand.cmd == "END") {
+				feedToEnd = true;
+				cState = 2;			// Feed Process
+			}
+			
 			break;
 
 		case 2:
@@ -166,7 +180,7 @@ void loop() {
 
 				// If we're not feeding to the end after waiting, we're clear for a new command.
 				if (!feedToEnd) {
-					Serial.println("RDY");
+					sendReady();
 					cState = 1;		// Ready for next command
 					break;
 				}
@@ -181,7 +195,7 @@ void loop() {
 			} else {
 				if (Feed.feedEmpty()) {
 					// If the feed is empty, we must be ready.
-					Serial.println("RDY");
+					sendReady();
 					cState = 1;			// Ready for next command
 				} else {
 					// Otherwise, cycle the feed and mark the motion in process.
@@ -235,19 +249,162 @@ void isrFeedClear() {
 
 void isrWheelClear() {
 	sortMotionInProcess = false;
+  digitalWrite(ledPin, LOW);
 }
+
+Command parseCmd(String incCmd) {
+	// parses a command string into the Command struct. Also handles certain vital commands, such as Halt.
+	
+	Command output;
+	
+	// Start by deleting the verification bit
+	incCmd.remove(0, 1);
+
+	// Fetch the first 3 characters and delete them, with the semicolon.
+	output.cmd = incCmd.substring(0, 3);
+	incCmd.remove(0, 4);
+
+	int argIndex = 0;
+	int commaIndex = incCmd.indexOf(',');
+
+	// Fetch all args until there are no delimiters left
+	while (commaIndex != -1) {
+		output.args[argIndex] = incCmd.substring(0, commaIndex);
+		incCmd.remove(0, commaIndex + 1);
+		argIndex++;
+	}
+
+	// The rest of the string is the last arg.
+
+	output.args[argIndex] = incCmd;
+	output.numArgs = argIndex + 1;
+
+	// Halt command recieved. Requires reset.
+	if (output.cmd == "HCF") {
+		sendAck();
+		while (1) { ; }
+	}
+
+	// Debugging command: Cycle Feed
+	if (output.cmd == "CFD") {
+		int numCycles = output.args[0].toInt();
+		Feed.cycleFeed(numCycles);
+    sendAck();
+	}
+
+	// Debugging command: Move Sort Wheel
+	if (output.cmd == "MSW") {
+		int targetCup = output.args[0].toInt();
+		Wheel.moveTo(targetCup);
+    digitalWrite(ledPin, HIGH);
+    sendAck();
+	}
+
+	// Debugging command: Cycle Dispense Arm
+	if (output.cmd == "CDA") {
+		SwingArm.write(swingOpen);
+		delay(swingTime);
+		SwingArm.write(swingHome);
+		delay(swingTime);
+    sendAck();
+	}
+
+	return(output);
+}
+
+String parseCmd(Command outCmd) {
+	// parses a Command struct into a command string for sendout.
+
+	String output;
+	output = outCmd.cmd;
+	output.concat(';');
+
+	for (int i = 0; i < outCmd.numArgs; i++) {
+		output.concat(outCmd.args[i]);
+		output.concat(',');
+	}
+
+  // Delete the last character in the string
+  output = output.substring(0, output.length() - 1);
+
+	char lenVerify = output.length();
+	output = lenVerify + output;
+
+	return(output);
+}
+
+bool cmdReady() {
+	// The first byte of a command will be the number of bytes in the command.
+	bool result = ((int) Serial.peek() == (int)Serial.available());
+	return(result);
+}
+
+void sendCommand(Command sendCmd) {
+	String output = parseCmd(sendCmd);
+
+	Serial.println(output);
+	Serial.flush();
+}
+
 
 void sendError(String err) {
 	// Sends an error to the RPi
 
-	Serial.println("ERR");
-	Serial.println(err);
-	Serial.flush();
+	Command errCommand;
+
+	errCommand.cmd = "ERR";
+	errCommand.numArgs = 1;
+	errCommand.args[0] = err;
+
+	sendCommand(errCommand);
 }
 
-void setNewModeState(int newMode) {
-	// TODO: Set State from new Mode command
+void sendDat(String dat) {
+	// Sends misc data to the RPi
+
+	Command datCommand;
+
+	datCommand.cmd = "DAT";
+	datCommand.numArgs = 1;
+	datCommand.args[0] = dat;
+
+	sendCommand(datCommand);
 }
+
+void sendReady() {
+	Command readyCommand;
+
+	readyCommand.cmd = "RDY";
+	readyCommand.numArgs = 0;
+
+	sendCommand(readyCommand);
+}
+
+void sendAck() {
+	Command ackCommand;
+
+	ackCommand.cmd = "ACK";
+	ackCommand.numArgs = 0;
+
+	sendCommand(ackCommand);
+}
+
+/*
+case 1:
+// Mode 1 is Major Divisions, powers of 10 with precisions included.
+	for (int i = 0; i < 8; i++) {
+		// For each target cup, give it a min and max corresponding to a power of 10
+		double min = pow(10.0, i);
+		double max = min * 10;
+		min = min - (min * pMultiplier);
+		max = max + (max * pMultiplier);
+		Cups[i].setCupRange(min, max);
+	}
+
+	// State 1, waiting for a resistor
+	return(1);
+	break;
+*/
 
 void clearRegisters() {
 	// This function triggers the reset on the shift registers, then latches the empty register.
@@ -339,18 +496,21 @@ double measureResistor() {
 }
 
 int getTargetCup(double measurement) {
-	// This function checks the measurement against every non-reject cup. If a home is found, that cup number is returned.
-	// If no cup is found, a reject cup is selected. If no reject cup is available, an error is thrown.
-
+	// This function checks the measurement against every non-reject cup. If a home is found, that cup number (not index) is returned.
+	
 	for (int i = 0; i < cupCount; i++) {
-		if (Cups[i].canAccept(measurement) && !Cups[i].isReject()) {
-			return(i + 1);
+		// For each cup, look for a valid home that is not a reject.
+		if (Wheel.cups[i].canAccept(measurement) && !Wheel.cups[i].isReject()) {
+			int result = i + 1;
+			return(result);	// Return that cup.
 		}
 	}
 
 	for (int i = 0; i < cupCount; i++) {
-		if (Cups[i].isReject()) {
-			return(i + 1);
+		// Find the first available reject cup.
+		if (Wheel.cups[i].isReject()) {
+			int result = i + 1;
+			return(result);	// Return that cup.
 		}
 	}
 

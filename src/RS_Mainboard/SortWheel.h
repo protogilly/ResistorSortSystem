@@ -14,8 +14,37 @@ Westcott (shawn.westcott@8tinybits.com).
 #ifndef _SORTWHEEL_h
 #define _SORTWHEEL_h 1
 
+// Number of Cups on wheel
+#define cupCount 10
+
 #include "Arduino.h"
 #include <Wire.h>
+
+class SortCup {
+	public:
+	// Default Constructor -- sets all values to 0 and makes the cup a reject cup
+	SortCup();
+
+	// Constructor -- needs a min, max, and nominal. (Not Reject)
+	SortCup(double minValue, double maxValue);
+
+	// Constructor -- Min and max are determined via precision (Given as a whole number percentage). (Not Reject)
+	SortCup(double nominal, int precision);
+
+	double getMin();
+	double getMax();
+	bool canAccept(double value);
+	bool isReject();
+	void setRejectState(bool state);
+	void setCupRange(double minValue, double maxValue);
+	void setCupRange(double nominalValue, int precision);
+
+	private:
+	double _minVal;
+	double _maxVal;
+	bool _rejectCup;
+
+};
 
 class SortWheel {
 	public:
@@ -28,40 +57,14 @@ class SortWheel {
 		// Calculates shortest path to the target and issues a command to the controller.
 		void moveTo(int target);
 
+		// Collection of cups as part of the SortWheel.
+		SortCup cups[cupCount];
+
 	private:
 		int _wireChannel;
 		int _curPos;
 		int _numCups;
 
 };
-
-class SortCup {
-	public:
-		// Default Constructor -- sets all values to 0 and makes the cup a reject cup
-		SortCup();
-	
-		// Constructor -- needs a min, max, and nominal. (Not Reject)
-		SortCup(double nominal, double minValue, double maxValue);
-
-		// Constructor -- Min and max are determined via precision. (Not Reject)
-		SortCup(double nominal, double precision);
-
-		double getNominal();
-		double getMin();
-		double getMax();
-		bool canAccept(double value);
-		bool isReject();
-		void setRejectState(bool state);
-		void setCupRange(double nominalValue, double minValue, double maxValue);
-		void setCupRange(double nominalValue, double precision);
-
-	private:
-		double _nomVal;
-		double _minVal;
-		double _maxVal;
-		bool _rejectCup;
-
-};
-
 
 #endif

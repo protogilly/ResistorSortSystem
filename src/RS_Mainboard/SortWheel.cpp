@@ -49,26 +49,21 @@ void SortWheel::moveTo(int target) {
 
 SortCup::SortCup() {
 	
-	_nomVal = 0.0;
 	_minVal = 0.0;
 	_maxVal = 0.0;
 	_rejectCup = true;
 }
 
-SortCup::SortCup(double nominal, double minValue, double maxValue) {
+SortCup::SortCup(double minValue, double maxValue) {
 	
-	this->setCupRange(nominal, minValue, maxValue);
+	this->setCupRange(minValue, maxValue);
 	_rejectCup = false;
 }
 
-SortCup::SortCup(double nominal, double precision) {
+SortCup::SortCup(double nominal, int precision) {
 
 	this->setCupRange(nominal, precision);
 	_rejectCup = false;
-}
-
-double SortCup::getNominal() {
-	return(_nomVal);
 }
 
 double SortCup::getMin() {
@@ -101,16 +96,15 @@ void SortCup::setRejectState(bool state) {
 	_rejectCup = state;
 }
 
-void SortCup::setCupRange(double nominalValue, double minValue, double maxValue) {
+void SortCup::setCupRange(double minValue, double maxValue) {
 
-	_nomVal = nominalValue;
 	_minVal = minValue;
 	_maxVal = maxValue;
 }
 
-void SortCup::setCupRange(double nominalValue, double precision) {
+void SortCup::setCupRange(double nominalValue, int precision) {
+	double range = nominalValue * ((double) precision / 100.0);
 
-	_nomVal = nominalValue;
-	_minVal = nominalValue - (nominalValue * precision);
-	_maxVal = nominalValue + (nominalValue * precision);
+	_minVal = nominalValue - range;
+	_maxVal = nominalValue + range;
 }

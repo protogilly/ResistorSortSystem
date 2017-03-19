@@ -18,6 +18,13 @@ Westcott (shawn.westcott@8tinybits.com).
 
 #include "Arduino.h"
 
+// The struct for incoming and outgoing commands.
+typedef struct {
+	String cmd;
+	int numArgs;
+	String args[10];
+} Command;
+
 // Servo Control Pins
 	#define SrvoA		4
 	#define SrvoB		3
@@ -28,6 +35,9 @@ Westcott (shawn.westcott@8tinybits.com).
 	#define AttTrig2	11
 	#define AttTrig3	12
 	#define AttTrig4	7
+
+// LED Pin for Debugging
+  #define ledPin  13
 
 // Analog Inputs
 	#define RMeas		0		// Analog Pin 0, Digital 14
@@ -45,14 +55,11 @@ Westcott (shawn.westcott@8tinybits.com).
 	#define SCL		19
 
 // I2C Slave Channels
-	#define FeedController 1
-	#define SortController 2
+	#define SortController 1	
+	#define FeedController 2
 	
 // Analog Resolution
 	#define bitPrecision 12
-
-// Number of Cups on wheel
-	#define cupCount 10
 
 // Constants for Moving Servos
 	extern const int contactHome;
@@ -66,18 +73,21 @@ Westcott (shawn.westcott@8tinybits.com).
 // Constants for Calibrated Measurements (Voltages, Resistances, Currents)
 	extern const double avHigh;
 	extern const double avLow;
-	const long internalTestResistances[6];
-	const double internalCurrentSources[3];
+	extern const long internalTestResistances[6];
+	extern const double internalCurrentSources[3];
 
 // Standard Resistor values
 
 // 1% E96 Series
+	extern const int E96Count;
 	extern const int stdResistors1[96];
 
 // 2% and 5% E24 Series
+	extern const int E24Count;
 	extern const int stdResistors2_5[24];
 
 // 10% E12 Series
+	extern const int E12Count;
 	extern const int stdResistors10[12];
 
 #endif
