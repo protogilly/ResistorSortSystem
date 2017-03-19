@@ -36,6 +36,9 @@ typedef struct {
 	#define AttTrig3	12
 	#define AttTrig4	7
 
+// LED Pin for Debugging
+  #define ledPin  13
+
 // Analog Inputs
 	#define RMeas		0		// Analog Pin 0, Digital 14
 	#define TempSense	1		// Analog Pin 1, Digital 15

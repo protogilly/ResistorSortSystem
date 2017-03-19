@@ -82,6 +82,7 @@ void setup() {
 	pinMode(AttTrig2, OUTPUT);
 	pinMode(AttTrig3, INPUT);	// Trigger from Feed Controller indicating last command completed successfully
 	pinMode(AttTrig4, OUTPUT);
+  pinMode(ledPin, OUTPUT);
 
 	// AttTrig3 is an interrupt from the slave processor that lets us know the last feed command is complete.
 	attachInterrupt(AttTrig3, isrFeedClear, RISING);
@@ -98,6 +99,8 @@ void setup() {
 
 	// Send setup value to StepFeeder controller
 	Wire.beginTransmission(FeedController);
+
+  delay(5);
 	
 	// Number of steps per feed action = 115 degrees, 1.8 deg/step = ~64 steps per action.
 	Wire.write(64);
@@ -112,16 +115,18 @@ void setup() {
 	// Begin Serial comms with RPi
 	Serial.begin(9600);
 
+  sendReady();
+	
 	// Wait for the Ready from the RPi.
 	do {
-		;
+    ;
 	} while (!cmdReady());
 
 	String incCmd = Serial.readString();
 	Command handshake = parseCmd(incCmd);
 
 	if (handshake.cmd == "RDY") {
-		sendReady();
+		sendAck();
 	} else {
 		sendError("Inv Handshake on Startup. Halting.");
 		while (1) { ; }	// Something went very wrong. Stop here.
@@ -244,6 +249,7 @@ void isrFeedClear() {
 
 void isrWheelClear() {
 	sortMotionInProcess = false;
+  digitalWrite(ledPin, LOW);
 }
 
 Command parseCmd(String incCmd) {
@@ -281,25 +287,26 @@ Command parseCmd(String incCmd) {
 
 	// Debugging command: Cycle Feed
 	if (output.cmd == "CFD") {
-		sendAck();
 		int numCycles = output.args[0].toInt();
 		Feed.cycleFeed(numCycles);
+    sendAck();
 	}
 
 	// Debugging command: Move Sort Wheel
 	if (output.cmd == "MSW") {
-		sendAck();
-		int cupShift = output.args[0].toInt();
-		Feed.cycleFeed(cupShift);
+		int targetCup = output.args[0].toInt();
+		Wheel.moveTo(targetCup);
+    digitalWrite(ledPin, HIGH);
+    sendAck();
 	}
 
 	// Debugging command: Cycle Dispense Arm
 	if (output.cmd == "CDA") {
-		sendAck();
 		SwingArm.write(swingOpen);
 		delay(swingTime);
 		SwingArm.write(swingHome);
 		delay(swingTime);
+    sendAck();
 	}
 
 	return(output);
@@ -317,6 +324,9 @@ String parseCmd(Command outCmd) {
 		output.concat(',');
 	}
 
+  // Delete the last character in the string
+  output = output.substring(0, output.length() - 1);
+
 	char lenVerify = output.length();
 	output = lenVerify + output;
 
@@ -325,7 +335,7 @@ String parseCmd(Command outCmd) {
 
 bool cmdReady() {
 	// The first byte of a command will be the number of bytes in the command.
-	bool result = Serial.peek() == Serial.available();
+	bool result = ((int) Serial.peek() == (int)Serial.available());
 	return(result);
 }
 

@@ -21,7 +21,7 @@
 	const int contactTime = 15;		// How long (in millis) does it take to move from Home to Touch?
 	const int swingHome = 180;
 	const int swingOpen = 130;
-	const int swingTime = 15;		// How long (in millis) does it take to move from Home to Open?
+	const int swingTime = 400;		// How long (in millis) does it take to move from Home to Open?
 
 // Constants for Calibrated Measurements (Voltages, Resistances, Currents)
 	const double avHigh = 3.3;
