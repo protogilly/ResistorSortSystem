@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.30501.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "ResistorSortUI", "ResistorSortUI.pyproj", "{5BAE3186-096B-4238-B32A-FCA69C1DF85A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|Mixed Platforms = Debug|Mixed Platforms
+		Debug|Win32 = Debug|Win32
+		Release|Any CPU = Release|Any CPU
+		Release|Mixed Platforms = Release|Mixed Platforms
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5BAE3186-096B-4238-B32A-FCA69C1DF85A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5BAE3186-096B-4238-B32A-FCA69C1DF85A}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
+		{5BAE3186-096B-4238-B32A-FCA69C1DF85A}.Debug|Win32.ActiveCfg = Debug|Any CPU
+		{5BAE3186-096B-4238-B32A-FCA69C1DF85A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5BAE3186-096B-4238-B32A-FCA69C1DF85A}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
+		{5BAE3186-096B-4238-B32A-FCA69C1DF85A}.Release|Win32.ActiveCfg = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

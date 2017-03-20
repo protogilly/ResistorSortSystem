@@ -82,7 +82,7 @@ void setup() {
 	pinMode(AttTrig2, OUTPUT);
 	pinMode(AttTrig3, INPUT);	// Trigger from Feed Controller indicating last command completed successfully
 	pinMode(AttTrig4, OUTPUT);
-  pinMode(ledPin, OUTPUT);
+	pinMode(ledPin, OUTPUT);
 
 	// AttTrig3 is an interrupt from the slave processor that lets us know the last feed command is complete.
 	attachInterrupt(AttTrig3, isrFeedClear, RISING);
@@ -100,7 +100,7 @@ void setup() {
 	// Send setup value to StepFeeder controller
 	Wire.beginTransmission(FeedController);
 
-  delay(5);
+	delay(5);
 	
 	// Number of steps per feed action = 115 degrees, 1.8 deg/step = ~64 steps per action.
 	Wire.write(64);
@@ -115,7 +115,7 @@ void setup() {
 	// Begin Serial comms with RPi
 	Serial.begin(9600);
 
-  sendReady();
+	sendReady();
 	
 	// Wait for the Ready from the RPi.
 	do {
@@ -249,7 +249,7 @@ void isrFeedClear() {
 
 void isrWheelClear() {
 	sortMotionInProcess = false;
-  digitalWrite(ledPin, LOW);
+	digitalWrite(ledPin, LOW);
 }
 
 Command parseCmd(String incCmd) {
@@ -296,8 +296,8 @@ Command parseCmd(String incCmd) {
 	if (output.cmd == "MSW") {
 		int targetCup = output.args[0].toInt();
 		Wheel.moveTo(targetCup);
-    digitalWrite(ledPin, HIGH);
-    sendAck();
+		digitalWrite(ledPin, HIGH);
+		sendAck();
 	}
 
 	// Debugging command: Cycle Dispense Arm
@@ -306,7 +306,7 @@ Command parseCmd(String incCmd) {
 		delay(swingTime);
 		SwingArm.write(swingHome);
 		delay(swingTime);
-    sendAck();
+		sendAck();
 	}
 
 	return(output);
