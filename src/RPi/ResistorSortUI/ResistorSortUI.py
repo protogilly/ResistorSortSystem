@@ -86,6 +86,7 @@ def warnConfirm(prompt):
     else:
         return False
 
+# Menu lists...
 mainMenu = ["1. Complete Sort",
             "2. Ranged Sort",
             "3. Custom Sort",
@@ -95,15 +96,16 @@ mainMenu = ["1. Complete Sort",
             "7. Debug Commands",
             "8. Quit"]
 
-debugMenu = ["1. Cycle Feed",
-             "2. Move Sort Wheel",
-             "3. Cycle Dispense Arm",
-             "4. Force Mainboard Halt",
-             "5. Reset Mainboard",
-             "6. Flush Serial to Console",
-             "7. Send Ready",
-             "8. Send ACK",
-             "9. Back to Main"]
+debugMenu = ["1.  Cycle Feed",
+             "2.  Move Sort Wheel",
+             "3.  Cycle Dispense Arm",
+             "4.  Test Measurement",
+             "5.  Force Mainboard Halt",
+             "6.  Reset Mainboard",
+             "7.  Flush Serial to Console",
+             "8.  Send Ready",
+             "9.  Send ACK",
+             "10. Back to Main"]
 
 ResistorSorter.clearScreen()
 
