@@ -1,19 +1,19 @@
 ﻿import ResistorSorter
 from time import sleep
-from pynput.keyboard import Key, Listener
+#from pynput.keyboard import Key, Listener
 
-def onPressSorting(key):
-    if (key == Key.enter or key == Key.space):
-        ResistorSorter.sendNxt()
-    elif (key == Key.esc):
-        ResistorSorter.sendEnd()
-    return(key)
+#def onPressSorting(key):
+#    if (key == Key.enter or key == Key.space):
+#        ResistorSorter.sendNxt()
+#    elif (key == Key.esc):
+#        ResistorSorter.sendEnd()
+#    return(key)
 # This Code starts the listener using the onPressSorting handler
-with Listener(on_press=onPressSorting) as listener:
-    listener.join()
+#with Listener(on_press=onPressSorting) as listener:
+#    listener.join()
 
 # This code stops the listener
-Listener.stop()
+#Listener.stop()
 
 def menuPrompt(menuList):
     # Generates a menu prompt given a list of options. Automatically handles ValueErrors and returns the option selected.
@@ -202,15 +202,10 @@ while (not quitSelected):
                     reset.send()
                     ResistorSorter.waitFor("ACK")
                     
-                    print("Waiting on Ready from Mainboard...\n")
-                    ResistorSorter.waitFor("RDY")
-
-                    print("Sending Ready to Mainboard...\n")
-                    ResistorSorter.sendRdy()
-
-                    print("Waiting on handshake...\n")
-                    ResistorSorter.waitFor("ACK")
-                
+                    print("Please Restart this script.")
+                    while (True):
+                        pass
+                                    
             elif (debugChoice == 6):
                 # Flush Serial to Console
                 # TODO: Implement Serial Flush

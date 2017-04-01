@@ -309,6 +309,11 @@ Command parseCmd(String incCmd) {
 		sendAck();
 	}
 
+ if (output.cmd == "RST") {
+    sendAck();
+    _reboot_Teensyduino_();
+ }
+
 	return(output);
 }
 
