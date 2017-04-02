@@ -4,7 +4,7 @@
 #include <AccelStepper.h>
 
 #ifndef TWI_RX_BUFFER_SIZE
-#define TWI_RX_BUFFER_SIZE (16)
+#define TWI_RX_BUFFER_SIZE (1)
 #endif
 
 const int pinStep = 7;
@@ -18,6 +18,10 @@ volatile bool inMotion = false;
 AccelStepper sortWheel(1, pinStep, pinDir);
 
 void setup() {
+	// Stepper Enable pin is inverted.
+	sortWheel.setPinsInverted(false, false, true);
+
+	// Begin Comms
 	TinyWireS.begin(I2C_SLAVE_ADDRESS);
 	TinyWireS.onReceive(receiveEvent);
 
@@ -40,7 +44,7 @@ void loop() {
 			// If we've reached the end of the last motion command, leave motion and send the trigger to the mainboard.
 			inMotion = false;
 			digitalWrite(attTrig0, HIGH);
-			tws_delay(5);		// 5ms seems like a long time to trigger an interrupt, but this allows a braking force on the sort wheel to complete.
+			tws_delay(10);		// 5ms seems like a long time to trigger an interrupt, but this allows a braking force on the sort wheel to complete.
 			digitalWrite(attTrig0, LOW);
 
 			// Disable Outputs to save power.
@@ -52,8 +56,12 @@ void loop() {
 	TinyWireS_stop_check();
 }
 
-void receiveEvent(uint8_t uCount) {
-	int count = (int) uCount;	// Conversion to signed int
+void receiveEvent(uint8_t howMany) {
+	if (howMany < 1 || howMany > TWI_RX_BUFFER_SIZE) {
+		return;
+	}
+
+	int count = TinyWireS.receive();
 
 	// Number of steps per cup position = 36 degrees / 0.9 degrees per step = 40 steps
 	sortWheel.move(count * 40);	// 40 steps per cup position

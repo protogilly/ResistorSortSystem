@@ -1,14 +1,36 @@
 ﻿import subprocess  # Used to run console commands in special circumstances
 import serial  # Serial Comms
 import sys
-    
-# Since the serial port for the Teensy may change on reboots and resets, we search it up to be sure we don't have issues.
-proc = subprocess.Popen('ls /dev/tty* | grep ACM', shell=True, stdout=subprocess.PIPE)
-output = proc.stdout.read()    # Run it and store the result
-output = output[:-1]        # Remove the last character (the newline)
+import os
+import time
+from platform import _ver_output
 
-# The proc output comes as a byte string, we need a string literal. Decode it.
-serialTTY = output.decode("ascii")
+# Open a logfile for debugging...
+debugFile = open("./debug", 'w')
+    
+serialTTY = ""
+print("Looking for Serial ACM", end='', flush=True)
+loopCount = 0
+
+# Wait until it is found
+while (serialTTY == ""):
+    if (loopCount > 30):
+        loopCount = 0
+        print(".", end='', flush=True)
+    # Since the serial port for the Teensy may change on reboots and resets, we search it up to be sure we don't have issues.
+    proc = subprocess.Popen('ls /dev/tty* | grep ACM', shell=True, stdout=subprocess.PIPE)
+    output = proc.stdout.read()    # Run it and store the result
+    output = output[:-1]        # Remove the last character (the newline)
+    
+    # The proc output comes as a byte string, we need a string literal. Decode it.
+    serialTTY = output.decode("ascii")
+    
+    loopCount += 1
+    
+print ("\n")
+
+print("Waiting for permission from OS...")
+time.sleep(2)
 
 # Open Serial Comms
 port = serial.Serial()
@@ -37,11 +59,17 @@ class Command:
         output = output + ",".join(self.args)
 
         # Get the validation byte and append it to the start
-        validByte = chr(len(output))
+        byteValue = len(output) + 1
+        validByte = chr(byteValue)
         output = validByte + output
+        
+        global debugFile
+        debugFile.write("OUT: ")
+        debugFile.write(output)
+        debugFile.write("\n")
 
         # Convert to a byte string for serial comms
-        serOut = bytes(output)
+        serOut = bytes(output, "ascii")
 
         # Send it out over the global port.
         global port
@@ -75,7 +103,12 @@ def fetchCmd():
     while True:
         if (port.in_waiting > 0):
             nextLine = port.readline()
-        
+            
+            global debugFile
+            debugFile.write("IN: ")
+            debugFile.write(nextLine.decode("ascii"))
+            debugFile.write("\n")
+            
             # Ditch the newline characters
             nextLine = nextLine[:-2]
 
@@ -86,7 +119,8 @@ def fetchCmd():
                 print("ERROR: Verification byte invalid. Received {}, Expected {}.\n".format(received, expected))
             else:
                 output = nextLine.decode("ascii")
-        break
+            
+            break
 
     return(output)
 
@@ -162,8 +196,7 @@ def waitFor(command):
     return(thisCmd)
             
 def clearScreen():
-    # Clears the screen by writing the ANSI escape sequence to clear the screen. (http://stackoverflow.com/a/2084560)
-    sys.stderr.write("\x1b[2J\x1b[H")
+    os.system('clear')
     
     # Title Line
     print("Resistor Sortation System\n\n")

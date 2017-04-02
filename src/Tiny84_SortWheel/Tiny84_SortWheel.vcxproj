@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{AAC0755E-5A26-45F8-B085-4A1053EA43A1}</ProjectGuid>
+    <ProjectGuid>{C5F80730-F44F-4478-BDAE-6634EFC2CA88}</ProjectGuid>
     <RootNamespace>
     </RootNamespace>
     <ProjectName>Tiny84_SortWheel</ProjectName>

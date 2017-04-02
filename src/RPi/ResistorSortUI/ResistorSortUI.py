@@ -107,11 +107,6 @@ debugMenu = ["1.  Cycle Feed",
              "9.  Send ACK",
              "10. Back to Main"]
 
-ResistorSorter.clearScreen()
-
-print("Waiting on Ready from Mainboard...\n")
-ResistorSorter.waitFor("RDY")
-
 print("Sending Ready to Mainboard...\n")
 ResistorSorter.sendRdy()
 
@@ -119,6 +114,8 @@ print("Waiting on handshake...\n")
 ResistorSorter.waitFor("ACK")
 
 quitSelected = False
+
+ResistorSorter.clearScreen()
 
 while (not quitSelected):
     menuChoice = menuPrompt(mainMenu)
@@ -169,7 +166,7 @@ while (not quitSelected):
                 # Move Sort Wheel
                 targetPos = fetchInt("Move to which cup [1-9]? ", 1, 9)
                 sortWheelCmd = ResistorSorter.Command()
-                sortWheelCmd.cmd = "MTC"
+                sortWheelCmd.cmd = "MSW"
                 sortWheelCmd.args = [str(targetPos)]
                 sortWheelCmd.send()
                 ResistorSorter.waitFor("ACK")
@@ -183,6 +180,10 @@ while (not quitSelected):
                 ResistorSorter.waitFor("ACK")
                 
             elif (debugChoice == 4):
+                # Test Measurement
+                sleep(1)
+                
+            elif (debugChoice == 5):
                 # Halt Board. (HCF = Halt and Catch Fire)
                 
                 if warnConfirm("WARNING: This WILL freeze the mainboard! This will require a power cycle! Are you sure [Y/N]?"):
@@ -192,7 +193,7 @@ while (not quitSelected):
                     HCF.send()
                     ResistorSorter.waitFor("ACK")
                 
-            elif (debugChoice == 5):
+            elif (debugChoice == 6):
                 # Force Mainboard Reset
                 
                 if warnConfirm("WARNING: This will reset the mainboard. Are you sure [Y/N]?"):
@@ -206,20 +207,20 @@ while (not quitSelected):
                     while (True):
                         pass
                                     
-            elif (debugChoice == 6):
+            elif (debugChoice == 7):
                 # Flush Serial to Console
                 # TODO: Implement Serial Flush
                 sleep(1)
                 
-            elif (debugChoice == 7):
+            elif (debugChoice == 8):
                 # Force Send RDY
                 ResistorSorter.sendRdy()
                 
-            elif (debugChoice == 8):
+            elif (debugChoice == 9):
                 # Force Send ACK
                 ResistorSorter.sendAck()
                 
-            elif (debugChoice == 9):
+            elif (debugChoice == 10):
                 # Sets the retSelected flag to leave the debug menu.
                 retSelected = True
             

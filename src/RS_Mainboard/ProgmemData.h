@@ -55,8 +55,8 @@ typedef struct {
 	#define SCL		19
 
 // I2C Slave Channels
-	#define SortController 1	
-	#define FeedController 2
+	#define SortController 0x1	
+	#define FeedController 0x2
 	
 // Analog Resolution
 	#define bitPrecision 12

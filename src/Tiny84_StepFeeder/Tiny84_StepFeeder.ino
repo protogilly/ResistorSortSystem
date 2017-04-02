@@ -16,7 +16,7 @@
 #include <AccelStepper.h>
 
 #ifndef TWI_RX_BUFFER_SIZE
-#define TWI_RX_BUFFER_SIZE (16)
+#define TWI_RX_BUFFER_SIZE (1)
 #endif
 
 // Pin Definitions
@@ -77,7 +77,13 @@ void loop() {
 	TinyWireS_stop_check();
 }
 
-void receiveEvent(uint8_t uCount) {
+void receiveEvent(uint8_t howMany) {
+	if (howMany < 1 || howMany > TWI_RX_BUFFER_SIZE) {
+		return;
+	}
+
+	uint8_t uCount = TinyWireS.receive();
+
 	if (!hasSetup) {
 		// If we haven't recieved a setup yet, this must be it. Set the number of steps per feed action.
 		fwdSteps = uCount;
