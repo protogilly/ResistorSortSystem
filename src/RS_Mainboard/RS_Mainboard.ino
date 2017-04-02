@@ -489,7 +489,7 @@ double measureResistor() {
 	int medianReading = maxAnalog / 2;
 	int cDifference, bestDifference = 99999;		// Arbitrarily large value here to ensure any reading is superior.
 	int bestRange = 0;							// Range 0 is with outputs turned off, a safe fallback in case of failure.
-	int reading, bestReading = 0;
+	double reading, bestReading = 0.0;
 	
 	// For each range...
 	for (int i = 1; i <= 9; i++) {
@@ -520,8 +520,8 @@ double measureResistor() {
 		// First, convert the reading to volts. (High voltage for dividers)
 		double vReading = bestReading * (avHigh / maxAnalog);
 		
-		// Voltage divider formula: Vd = Vs * (R / Rt), solving for R gives R = (Rt*Vd)/Vs
-		result = (internalTestResistances[bestRange] * vReading) / avHigh;
+		// Voltage divider formula: Vd = Vs * (R / Rt), where Rt = (R+Ri), solving for R gives R = (Ri*Vd)/(Vs-Vd)
+		result = (internalTestResistances[bestRange] * vReading) / (avHigh - vReading);
 	} else {
 		// Bring the range down to 0 index from 6-8 index
 		bestRange = bestRange - 6;
