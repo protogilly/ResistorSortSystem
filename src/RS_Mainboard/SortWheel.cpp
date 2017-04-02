@@ -40,8 +40,18 @@ void SortWheel::moveTo(int target) {
 
 	bestRoute = rightPath < leftPath ? rightPath : -leftPath;
 
+	// We'd like to only ever send a single byte.
+	uint8_t route = 0;
+
+	// We know we'll never send a very large value. Negative numbers can start at +100.
+	if (bestRoute < 0) {
+		bestRoute = bestRoute * -1;
+		bestRoute = bestRoute + 100;
+	}
+	route = (uint8_t) bestRoute;
+
 	Wire.beginTransmission(_wireChannel);
-	Wire.write(bestRoute);
+	Wire.write(route);
 	Wire.endTransmission();
 
 	_curPos = target;

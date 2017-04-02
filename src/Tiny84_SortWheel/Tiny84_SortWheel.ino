@@ -12,8 +12,10 @@ const int pinDir = 8;
 const int pinSleep = 9;
 const int pinEnable = 10;
 const int attTrig0 = 1;
+const int backlashSteps = 10;
 
 volatile bool inMotion = false;
+volatile bool lastDir = false;
 
 AccelStepper sortWheel(1, pinStep, pinDir);
 
@@ -32,8 +34,8 @@ void setup() {
 	digitalWrite(pinSleep, HIGH);
 
 	sortWheel.setEnablePin(pinEnable);
-	sortWheel.setMaxSpeed(75.0);
-	sortWheel.setAcceleration(100.0);
+	sortWheel.setMaxSpeed(90.0);
+	sortWheel.setAcceleration(95.0);
 
 	sortWheel.disableOutputs();
 }
@@ -61,10 +63,39 @@ void receiveEvent(uint8_t howMany) {
 		return;
 	}
 
-	int count = TinyWireS.receive();
+	bool thisDir = false;
+
+	uint8_t count = TinyWireS.receive();
+	int dirCount = 0;
+
+	// Values over 100 indicate an opposite direction.
+	if (count > 100) {
+		count = count - 100;
+		dirCount = count;
+		dirCount = dirCount * -1;
+		thisDir = false;
+	} else {
+		dirCount = count;
+		thisDir = true;
+	}
 
 	// Number of steps per cup position = 36 degrees / 0.9 degrees per step = 40 steps
-	sortWheel.move(count * 40);	// 40 steps per cup position
+	int steps = dirCount * 40;	// 40 steps per cup position
+
+	// If the direction has changed, include some extra steps to take up the backlash
+	if (thisDir != lastDir) {
+		if (!thisDir) {
+			steps = steps - backlashSteps;
+		} else {
+			steps = steps + backlashSteps;
+		}
+	}
+
+	// Keep track of the last direction
+	lastDir = thisDir;
+
+	// Make the motion
+	sortWheel.move(steps);	
 	sortWheel.enableOutputs();
 	inMotion = true;
 }

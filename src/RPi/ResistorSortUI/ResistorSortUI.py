@@ -156,15 +156,16 @@ while (not quitSelected):
             
             if (debugChoice == 1):
                 # Cycle Feed
+                numCycles = fetchInt("How many cycles [1-4]?", 1, 4)
                 cycleFeed = ResistorSorter.Command()
                 cycleFeed.cmd = "CFD"
-                cycleFeed.args = []
+                cycleFeed.args = [str(numCycles)]
                 cycleFeed.send()
                 ResistorSorter.waitFor("ACK")
                 
             elif (debugChoice == 2):
                 # Move Sort Wheel
-                targetPos = fetchInt("Move to which cup [1-9]? ", 1, 9)
+                targetPos = fetchInt("Move to which cup [1-10]? ", 1, 10)
                 sortWheelCmd = ResistorSorter.Command()
                 sortWheelCmd.cmd = "MSW"
                 sortWheelCmd.args = [str(targetPos)]
