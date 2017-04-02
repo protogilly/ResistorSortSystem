@@ -83,6 +83,7 @@ void setup() {
 	pinMode(AttTrig3, INPUT_PULLUP);	// Trigger from Feed Controller indicating last command completed successfully
 	pinMode(AttTrig4, OUTPUT);
 	pinMode(ledPin, OUTPUT);
+	pinMode(RMeas, INPUT);
 
 	// AttTrig3 is an interrupt from the slave processor that lets us know the last feed command is complete.
 	attachInterrupt(AttTrig3, isrFeedClear, RISING);
@@ -145,103 +146,103 @@ void loop() {
 	}
 
 	// The loop is a state machine, the action the system takes depends on what state it is in.
-	switch (cState) {
-		case 0:
-		// Waiting for Mode Set (RPi Command). Do nothing.
-			break;
-		
-		case 1:
-		// Ready for next Resistor Load Command
-			// NXT is the command that indicates the user has pressed the button saying they loaded a resistor.
-			if (thisCommand.cmd == "NXT") {
-				if (feedInProcess) {
-					sendError("Feed In Process");
-				} else if (!Feed.loadPlatformEmpty()) {
-					sendError("Load Platform Not Empty");
-				} else {
-					Feed.load();
-					cState = 2;		// Feed Process
-				}
-			}
+	//switch (cState) {
+	//	case 0:
+	//	// Waiting for Mode Set (RPi Command). Do nothing.
+	//		break;
+	//	
+	//	case 1:
+	//	// Ready for next Resistor Load Command
+	//		// NXT is the command that indicates the user has pressed the button saying they loaded a resistor.
+	//		if (thisCommand.cmd == "NXT") {
+	//			if (feedInProcess) {
+	//				sendError("Feed In Process");
+	//			} else if (!Feed.loadPlatformEmpty()) {
+	//				sendError("Load Platform Not Empty");
+	//			} else {
+	//				Feed.load();
+	//				cState = 2;		// Feed Process
+	//			}
+	//		}
 
-			if (thisCommand.cmd == "END") {
-				feedToEnd = true;
-				cState = 2;			// Feed Process
-			}
-			
-			break;
+	//		if (thisCommand.cmd == "END") {
+	//			feedToEnd = true;
+	//			cState = 2;			// Feed Process
+	//		}
+	//		
+	//		break;
 
-		case 2:
-		// Resistor Feeding
-			if (Feed.loadPlatformEmpty()) {
-				// If the feed platform is empty, but we're in a motion, wait.
-				if (feedInProcess) {
-					break;
-				}
+	//	case 2:
+	//	// Resistor Feeding
+	//		if (Feed.loadPlatformEmpty()) {
+	//			// If the feed platform is empty, but we're in a motion, wait.
+	//			if (feedInProcess) {
+	//				break;
+	//			}
 
-				// If we're not feeding to the end after waiting, we're clear for a new command.
-				if (!feedToEnd) {
-					sendReady();
-					cState = 1;		// Ready for next command
-					break;
-				}
-			}
+	//			// If we're not feeding to the end after waiting, we're clear for a new command.
+	//			if (!feedToEnd) {
+	//				sendReady();
+	//				cState = 1;		// Ready for next command
+	//				break;
+	//			}
+	//		}
 
-			// Because of breaks, we only get to this point if the load platform is full.
-			// Structuring in this way allows a states where we are feeding to the end to fall through to this point.
+	//		// Because of breaks, we only get to this point if the load platform is full.
+	//		// Structuring in this way allows a states where we are feeding to the end to fall through to this point.
 
-			if (!Feed.measurePlatformEmpty()) {
-				// If the measurement platform is full, we have to handle that first.
-				cState = 3;				// Measure Resistor
-			} else {
-				if (Feed.feedEmpty()) {
-					// If the feed is empty, we must be ready.
-					sendReady();
-					cState = 1;			// Ready for next command
-				} else {
-					// Otherwise, cycle the feed and mark the motion in process.
-					Feed.cycleFeed(1);
-					feedInProcess = true;
-				}
-			}
+	//		if (!Feed.measurePlatformEmpty()) {
+	//			// If the measurement platform is full, we have to handle that first.
+	//			cState = 3;				// Measure Resistor
+	//		} else {
+	//			if (Feed.feedEmpty()) {
+	//				// If the feed is empty, we must be ready.
+	//				sendReady();
+	//				cState = 1;			// Ready for next command
+	//			} else {
+	//				// Otherwise, cycle the feed and mark the motion in process.
+	//				Feed.cycleFeed(1);
+	//				feedInProcess = true;
+	//			}
+	//		}
 
-			break;
+	//		break;
 
-		case 3:
-		// Measure Resistor
-			if (!Feed.measurePlatformEmpty()) {
-				// If the measurement platform isn't empty, measure the resistor
-				measurement = measureResistor();
+	//	case 3:
+	//	// Measure Resistor
+	//		if (!Feed.measurePlatformEmpty()) {
+	//			// If the measurement platform isn't empty, measure the resistor
+	//			measurement = measureResistor();
 
-				// Get the target cup and begin the sort motion
-				int targetSortPos = getTargetCup(measurement);
-				Wheel.moveTo(targetSortPos);
-				sortMotionInProcess = true;
-				cState = 4;				// Dispense Resistor
-			} else {
-				// If it's empty, we either need to go back to feeding or attempt dispense again.
-				if (sortMotionInProcess) {
-					cState = 4;			// Dispense Resistor
-				} else {
-					cState = 2;			// Feed Process
-				}
-			}
+	//			// Get the target cup and begin the sort motion
+	//			int targetSortPos = getTargetCup(measurement);
+	//			Wheel.moveTo(targetSortPos);
+	//			sortMotionInProcess = true;
+	//			cState = 4;				// Dispense Resistor
+	//		} else {
+	//			// If it's empty, we either need to go back to feeding or attempt dispense again.
+	//			if (sortMotionInProcess) {
+	//				cState = 4;			// Dispense Resistor
+	//			} else {
+	//				cState = 2;			// Feed Process
+	//			}
+	//		}
 
-			break;
+	//		break;
 
-		case 4:
-		// Dispense Resistor
-			if (!sortMotionInProcess) {
-				// A dispense state occurs after a sort motion has begun. Wait for the sort motion to complete and dispense. EZPZ.
-				SwingArm.write(swingOpen);
-				delay(swingTime);			// actual delay here, since we shouldn't move or process anything else until we're sure this is clear.
-				Feed.dispense();
-				SwingArm.write(swingHome);
-				delay(swingTime);
-				cState = 2;				// Feed Process
-			}
-
-	}
+	//	case 4:
+	//	// Dispense Resistor
+	//		if (!sortMotionInProcess) {
+	//			// A dispense state occurs after a sort motion has begun. Wait for the sort motion to complete and dispense. EZPZ.
+	//			SwingArm.write(swingOpen);
+	//			delay(swingTime);			// actual delay here, since we shouldn't move or process anything else until we're sure this is clear.
+	//			Feed.dispense();
+	//			SwingArm.write(swingHome);
+	//			delay(swingTime);
+	//			cState = 2;				// Feed Process
+	//		}
+	//
+	//}
 }
 
 void isrFeedClear() {
@@ -281,6 +282,8 @@ Command parseCmd(String incCmd) {
 	output.args[argIndex] = incCmd;
 	output.numArgs = argIndex + 1;
 
+	// Commands that follow are Debug commands, which are handled immediately.
+
 	// Halt command recieved. Requires reset.
 	if (output.cmd == "HCF") {
 		sendAck();
@@ -317,6 +320,26 @@ Command parseCmd(String incCmd) {
 		delay(swingTime);
 		digitalWrite(ledPin, LOW);
 		sendAck();
+	}
+
+	// Debugging command: Test Measurement
+	if (output.cmd == "TME") {
+		sendAck();
+
+		// Get the current cup and attempt a measurement
+		double testMeasurement = measureResistor();
+		int thisCup = Wheel.getCurrentPosition();
+
+		// Construct a response
+		Command mesCmd;
+		mesCmd.cmd = "MES";
+		mesCmd.numArgs = 2;
+		mesCmd.args[0] = String(thisCup);
+		mesCmd.args[1] = String(testMeasurement);
+
+		// Send the measurement data
+		sendCommand(mesCmd);
+
 	}
 
 	 if (output.cmd == "RST") {
@@ -472,7 +495,7 @@ double measureResistor() {
 	for (int i = 1; i <= 9; i++) {
 		// Enable the outputs for testing this range and take a measurement.
 		ShiftReg.setAll(srState[i]);
-		delay(10);							// 5ms maximum operating time for relays, doubled for safety.
+		delay(100);							// 5ms maximum operating time for relays, doubled for safety.
 		reading = analogRead(RMeas);
 		
 		// calculate the difference to center.
@@ -509,6 +532,10 @@ double measureResistor() {
 		// Current source measurement is simple, V=IR, solving for R gives R=V/I
 		result = vReading / internalCurrentSources[bestRange];
 	}
+
+	// Return to home position after measurement made.
+	ContactArm.write(contactHome);
+	delay(contactTime);
 	
 	// Return the Ohms value.
 	return(result);

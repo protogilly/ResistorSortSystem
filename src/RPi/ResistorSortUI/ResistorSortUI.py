@@ -182,7 +182,18 @@ while (not quitSelected):
                 
             elif (debugChoice == 4):
                 # Test Measurement
-                sleep(1)
+                testMeasure = ResistorSorter.Command()
+                testMeasure.cmd = "TME"
+                testMeasure.args = []
+                testMeasure.send()
+                ResistorSorter.waitFor("ACK")
+                mesData = ResistorSorter.Command()
+                mesData = ResistorSorter.waitFor("MES")
+                
+                # Read back the measurement and wait for input.
+                print("Cup: " + mesData.args[0] + ", Resistance: " + mesData.args[1] + "\n")
+                ResistorSorter.sendAck()
+                input()
                 
             elif (debugChoice == 5):
                 # Halt Board. (HCF = Halt and Catch Fire)

@@ -18,7 +18,7 @@
 	const int contactHome = 45;
 	const int contactTouch = 5;
 	const int contactPress = 0;
-	const int contactTime = 15;		// How long (in millis) does it take to move from Home to Touch?
+	const int contactTime = 450;		// How long (in millis) does it take to move from Home to Touch?
 	const int swingHome = 180;
 	const int swingOpen = 130;
 	const int swingTime = 400;		// How long (in millis) does it take to move from Home to Open?
