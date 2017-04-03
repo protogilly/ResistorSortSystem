@@ -73,7 +73,7 @@ typedef struct {
 // Constants for Calibrated Measurements (Voltages, Resistances, Currents)
 	extern const double avHigh;
 	extern const double avLow;
-	extern const long internalTestResistances[6];
+	extern const double internalTestResistances[6];
 	extern const double internalCurrentSources[3];
 
 // Standard Resistor values

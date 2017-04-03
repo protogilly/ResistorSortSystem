@@ -21,6 +21,11 @@
 #include "StepFeed.h"
 #include "SortWheel.h"
 
+#include <ADC.h>
+
+// Setting up ADC object
+ADC *adc = new ADC();
+
 // Declaring Servos. ContactArm presses contacts onto resistors for measurement, SwingArm releases and retains resistors.
 PWMServo ContactArm;
 PWMServo SwingArm;
@@ -40,10 +45,10 @@ uint8_t srState[10][srCount] = {
 	{B00000000, B00000000},	// Empty
 	{B10000000, B00000000},	// 10M Range
 	{B01000000, B00000000},	// 1M Range
-	{B00100000, B00000000},	// 100k Range
-	{B00010000, B00000000},	// 10k Range
-	{B00001000, B00000000},	// 1k Range
-	{B00000100, B00000000},	// 100R Range
+	{B00000100, B00000000},	// 100k Range
+	{B00001000, B00000000},	// 10k Range
+	{B00010000, B00000000},	// 1k Range
+	{B00100000, B00000000},	// 100R Range
 	{B00000010, B01000000},	// 100mA Source
 	{B00000001, B01000000},	// 29.37mA Source
 	{B00000000, B11000000} 	// 18.18mA Source
@@ -83,7 +88,6 @@ void setup() {
 	pinMode(AttTrig3, INPUT_PULLUP);	// Trigger from Feed Controller indicating last command completed successfully
 	pinMode(AttTrig4, OUTPUT);
 	pinMode(ledPin, OUTPUT);
-	pinMode(RMeas, INPUT);
 
 	// AttTrig3 is an interrupt from the slave processor that lets us know the last feed command is complete.
 	attachInterrupt(AttTrig3, isrFeedClear, RISING);
@@ -109,11 +113,13 @@ void setup() {
 	Wire.write(64);
 	Wire.endTransmission();
 	
-	// Enable External AREF
-	analogReference(EXTERNAL);
-	analogReadResolution(bitPrecision);
-	analogReadAveraging(16);					// Average 16 reads at ADC for result.
-	maxAnalog = pow(2.0, bitPrecision) - 1;		// Max value 4095 for 12 bits
+	// Set up ADC
+	adc->setReference(ADC_REF_EXT);
+	adc->setResolution(bitPrecision);
+	adc->setAveraging(32);
+	maxAnalog = adc->getMaxValue();
+	adc->setSamplingSpeed(ADC_VERY_LOW_SPEED);
+	adc->setConversionSpeed(ADC_VERY_LOW_SPEED);
 
 	// Begin Serial comms with RPi
 	Serial.begin(9600);
@@ -467,61 +473,88 @@ double measureResistor() {
 	// This function completes a full measurement cycle and returns a resistance in Ohms.
 	// 0.0 represents a rejected resistor.
 	
-	ContactArm.write(contactTouch);
-	delay(contactTime);
+	//ContactArm.write(contactTouch);
+	//delay(contactTime);
 	
 	// TODO: Determine algorithm to check if contact is positively made.
-	bool contactMade = true;
+	//bool contactMade = true;
 	
 	// If contact is not made, bring the test arm to push on the contact
-	if (!contactMade) {
-		ContactArm.write(contactPress);
-	}
+	//if (!contactMade) {
+	//	ContactArm.write(contactPress);
+	//}
 	
 	// TODO: Determine algorithm to check if contact is positively made.
-	contactMade = true;
+	//contactMade = true;
 	
 	// Still no contact? Reject this resistor.
-	if (!contactMade) {
-		return(0.0);
-	}
+	//if (!contactMade) {
+	//	return(0.0);
+	//}
 	
-	int medianReading = maxAnalog / 2;
-	int cDifference, bestDifference = 99999;		// Arbitrarily large value here to ensure any reading is superior.
-	int bestRange = 0;							// Range 0 is with outputs turned off, a safe fallback in case of failure.
-	double reading, bestReading = 0.0;
+	//int medianReading = maxAnalog / 2;
+	//int cDifference, bestDifference = 99999;		// Arbitrarily large value here to ensure any reading is superior.
+	//int bestRange = 0;							// Range 0 is with outputs turned off, a safe fallback in case of failure.
+	//double reading, bestReading = 0.0;
 	
 	// For each range...
-	for (int i = 1; i <= 9; i++) {
+	//for (int i = 1; i <= 9; i++) {
 		// Enable the outputs for testing this range and take a measurement.
-		ShiftReg.setAll(srState[i]);
-		delay(100);							// 5ms maximum operating time for relays, doubled for safety.
-		reading = analogRead(RMeas);
-		
+	//	ShiftReg.setAll(srState[i]);
+	//	delay(100);							// 5ms maximum operating time for relays, doubled for safety.
+	//	reading = analogRead(RMeas);
+	//	
 		// calculate the difference to center.
-		cDifference = reading - medianReading;
-		cDifference = (cDifference < 0) ? -cDifference : cDifference;	// Absolute value
+	//	cDifference = reading - medianReading;
+	//	cDifference = (cDifference < 0) ? -cDifference : cDifference;	// Absolute value
 		
 		// If this measurement is superior to the current best, take note.
-		if (cDifference < bestDifference) {
-			bestRange = i;
-			bestDifference = cDifference;
-			bestReading = reading;
-		}
+	//	if (cDifference < bestDifference) {
+	//		bestRange = i;
+	//		bestDifference = cDifference;
+	//		bestReading = reading;
+	//	}
+	//}
+
+	int bestRange = 2;
+
+	ShiftReg.setAll(srState[bestRange]);
+	delay(100);
+
+	double bestReading = adc->analogRead(RMeas);
+	long readingSums = 0;
+
+	int count = 0;
+	for (int i = 0; i < 1000; i++) {
+		readingSums = readingSums + adc->analogRead(RMeas);
+		count++;
 	}
+
+	bestReading = readingSums / count;
+
 
 	// Changing the range to a 0 index instead of a 1 index
 	bestRange--;
+
+	String data = String(bestReading);
+	sendDat(data);
 	
 	double result = 0.0;
 
-	// 6, 7, and 8 are the current source ranges. 0-5 are Volt Divider ranges
+	// 7, 8, and 9 are the current source ranges. 1-6 are Volt Divider ranges
 	if (bestRange < 6) {
 		// First, convert the reading to volts. (High voltage for dividers)
 		double vReading = bestReading * (avHigh / maxAnalog);
 		
-		// Voltage divider formula: Vd = Vs * (R / Rt), where Rt = (R+Ri), solving for R gives R = (Ri*Vd)/(Vs-Vd)
+		data = String(vReading);
+		sendDat(data);
+
+		data = String(internalTestResistances[bestRange], 4);
+		sendDat(data);
+		
+		// Voltage divider formula solved for R2...
 		result = (internalTestResistances[bestRange] * vReading) / (avHigh - vReading);
+
 	} else {
 		// Bring the range down to 0 index from 6-8 index
 		bestRange = bestRange - 6;
@@ -534,8 +567,10 @@ double measureResistor() {
 	}
 
 	// Return to home position after measurement made.
-	ContactArm.write(contactHome);
-	delay(contactTime);
+	//ContactArm.write(contactHome);
+	//delay(contactTime);
+
+	ShiftReg.setAll(srState[0]);
 	
 	// Return the Ohms value.
 	return(result);
