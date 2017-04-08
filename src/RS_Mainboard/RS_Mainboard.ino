@@ -9,6 +9,9 @@
 	If you'd like to use this code for a non-educational purpose, please contact Shawn
 	Westcott (shawn.westcott@8tinybits.com).
 
+	NOTE: This sketch requires a SERIAL1_RX_BUFFER_SIZE and SERIAL1_TX_BUFFER_SIZE of 100
+	Make this change in the teensy3 core before trying to use this sketch.
+
 */
 
 #include <Arduino.h>
@@ -43,15 +46,15 @@ ShiftRegister74HC595 ShiftReg(srCount, DAT0, SCLK0, LCLK0);
 // Shift register states
 uint8_t srState[10][srCount] = {
 	{B00000000, B00000000},	// Empty
-	{B10000000, B00000000},	// 10M Range
-	{B01000000, B00000000},	// 1M Range
+	{B10000000, B00000000},	// 10M Range		NOT USED
+	{B01000000, B00000000},	// 1M Range		NOT USED
 	{B00000100, B00000000},	// 100k Range
 	{B00001000, B00000000},	// 10k Range
 	{B00010000, B00000000},	// 1k Range
 	{B00100000, B00000000},	// 100R Range
-	{B00000010, B01000000},	// 100mA Source
-	{B00000001, B01000000},	// 29.37mA Source
-	{B00000000, B11000000} 	// 18.18mA Source
+	{B00000010, B01000000},	// 100mA Source	NEEDS CALIBRATION
+	{B00000001, B01000000},	// 29.37mA Source	NEEDS CALIBRATION
+	{B00000000, B11000000} 	// 18.18mA Source	NEEDS CALIBRATION
 };
 
 // These variables keep track of states of slave processors.
@@ -69,6 +72,7 @@ double measurement = 0.0;
 
 // Bool set when feeding out the remainder of the feed stack
 bool feedToEnd = false;
+bool isQCR = false;
 
 void setup() {
 	// Init Servos
@@ -123,7 +127,7 @@ void setup() {
 
 	// Begin Serial comms with RPi
 	Serial.begin(9600);
-	
+
 	// Wait for the Ready from the RPi.
 	do {
 		;
@@ -149,106 +153,236 @@ void loop() {
 	if (cmdReady()) {
 		String incCmd = Serial.readString();
 		Command thisCommand = parseCmd(incCmd);
+
+		// Some command handling...
+		if (thisCommand.cmd == "MAJ") {
+			// "Major Divisions" is a common preset.
+			double precision = (thisCommand.args[0].toInt / 100.0);
+
+			// Each cup gets a range of 10 up to 82, in powers of 10 (82 is the high side standard resistance value at the highest precision)
+			for (int i = 0; i < 6; i++) {
+				double lowSide = pow(10.0, i);
+				double highSide = lowSide * 8.2;
+				Wheel.cups[i].setCupRange(getMin(lowSide, precision), getMax(highSide, precision));
+				Wheel.cups[i].setRejectState(false);
+			}
+
+			// Upper end cups are rejects for this range.
+			Wheel.cups[6].setRejectState(true);
+			Wheel.cups[7].setRejectState(true);
+			Wheel.cups[8].setRejectState(true);
+			Wheel.cups[9].setRejectState(true);
+
+			sendAck();
+		}
+
+		if (thisCommand.cmd == "DIV") {
+			// "Simple Division" -- we get a number of groups to divide into, a precision, and a range of typical values.
+
+			// TODO: This stuff.
+
+			sendAck();
+		}
+
+		if (thisCommand.cmd == "SGL" || thisCommand.cmd == "QCR") {
+			// "Single Resistance" -- We search a collection of resistors for a specific value within a given precision.
+			// "Quality Check" -- Effectively the same as searching for a single resistance, except we set a flag to send measurement data.
+
+			int precision = thisCommand.args[0].toInt;
+			double nominal = thisCommand.args[1].toFloat;
+
+			// To do this, we simply set one cup to take this value, and the rest become rejects.
+			Wheel.cups[0].setCupRange(nominal, precision);
+			Wheel.cups[0].setRejectState(false);
+
+			for (int i = 1; i < cupCount; i++) {
+				Wheel.cups[i].setRejectState(true);
+			}
+
+			if (thisCommand.cmd == "QCR") {
+				isQCR = true;
+			}
+
+			sendAck();
+
+		}
+
+		if (thisCommand.cmd == "SSR") {
+			// "Sortable Range" -- we get a precision and 9 typical values. The 10th is reject.
+			int precision = thisCommand.args[0].toInt;
+
+			// Loop through the list of arguments setting up cups
+			for (int i = 1; i < thisCommand.numArgs; i++) {
+				Wheel.cups[i].setCupRange(thisCommand.args[i].toFloat, precision);
+				Wheel.cups[i].setRejectState(false);
+			}
+
+			Wheel.cups[9].setRejectState(true);
+
+			sendAck();
+
+		}
+
+		if (thisCommand.cmd == "OHM") {
+			// "Ohmmeter mode" -- We set all cups to accept all resistors. Since we always send measurement data back, there's no need to do much else.
+
+			for (int i = 0; i < cupCount; i++) {
+				Wheel.cups[i].setCupRange(0.0, 1000000000.0);
+				Wheel.cups[i].setRejectState(false);
+			}
+
+			sendAck();
+
+		}
+
+		if (thisCommand.cmd == "CUP") {
+			// "Cup set" command sets a cup to a specific value.
+			int cupNum = thisCommand.args[0].toInt;
+			double minVal = thisCommand.args[1].toFloat;
+			double maxVal = thisCommand.args[2].toFloat;
+			
+			bool isReject;
+
+			if (thisCommand.args[3].toInt == 0) {
+				isReject = false;
+			} else {
+				isReject = true;
+			}
+
+			// Convert to 0-index
+			cupNum--;
+
+			Wheel.cups[cupNum].setCupRange(minVal, maxVal);
+			Wheel.cups[cupNum].setRejectState(isReject);
+
+			sendAck();
+
+		}
+
+		if (thisCommand.cmd == "SRT") {
+			cState = 1;
+
+			sendReady();
+		}
 	}
 
 	// The loop is a state machine, the action the system takes depends on what state it is in.
-	//switch (cState) {
-	//	case 0:
-	//	// Waiting for Mode Set (RPi Command). Do nothing.
-	//		break;
-	//	
-	//	case 1:
-	//	// Ready for next Resistor Load Command
-	//		// NXT is the command that indicates the user has pressed the button saying they loaded a resistor.
-	//		if (thisCommand.cmd == "NXT") {
-	//			if (feedInProcess) {
-	//				sendError("Feed In Process");
-	//			} else if (!Feed.loadPlatformEmpty()) {
-	//				sendError("Load Platform Not Empty");
-	//			} else {
-	//				Feed.load();
-	//				cState = 2;		// Feed Process
-	//			}
-	//		}
+	switch (cState) {
+		case 0:
+		// Waiting for Mode Set (RPi Command). Do nothing.
+			break;
+		
+		case 1:
+		// Sorting Mode (Waiting on NXT).
+			// NXT is the command that indicates the user has pressed the button saying they loaded a resistor.
+			if (thisCommand.cmd == "NXT") {
+				if (feedInProcess) {
+					sendError("Feed In Process");
+				} else if (!Feed.loadPlatformEmpty()) {
+					sendError("Load Platform Not Empty");
+				} else {
+					Feed.load();
+					cState = 2;		// Feed Process
+					sendAck();
+				}
+			}
 
-	//		if (thisCommand.cmd == "END") {
-	//			feedToEnd = true;
-	//			cState = 2;			// Feed Process
-	//		}
-	//		
-	//		break;
+			// End is the user requesting that we cycle to completion.
+			if (thisCommand.cmd == "END") {
+				feedToEnd = true;
+				cState = 2;			// Feed Process
+				sendAck();
+			}
+			
+			break;
 
-	//	case 2:
-	//	// Resistor Feeding
-	//		if (Feed.loadPlatformEmpty()) {
-	//			// If the feed platform is empty, but we're in a motion, wait.
-	//			if (feedInProcess) {
-	//				break;
-	//			}
+		case 2:
+		// Resistor Feeding
+			if (Feed.loadPlatformEmpty()) {
+				// If the feed platform is empty, but we're in a motion, wait.
+				if (feedInProcess) {
+					break;
+				}
 
-	//			// If we're not feeding to the end after waiting, we're clear for a new command.
-	//			if (!feedToEnd) {
-	//				sendReady();
-	//				cState = 1;		// Ready for next command
-	//				break;
-	//			}
-	//		}
+				// If we're not feeding to the end after waiting, we're clear for a new command.
+				if (!feedToEnd) {
+					cState = 1;		// Ready for next command
+					sendReady();
+					break;
+				}
+			}
 
-	//		// Because of breaks, we only get to this point if the load platform is full.
-	//		// Structuring in this way allows a states where we are feeding to the end to fall through to this point.
+			// Because of breaks, we only get to this point if the load platform is full.
+			// Structuring in this way allows a states where we are feeding to the end to fall through to this point.
 
-	//		if (!Feed.measurePlatformEmpty()) {
-	//			// If the measurement platform is full, we have to handle that first.
-	//			cState = 3;				// Measure Resistor
-	//		} else {
-	//			if (Feed.feedEmpty()) {
-	//				// If the feed is empty, we must be ready.
-	//				sendReady();
-	//				cState = 1;			// Ready for next command
-	//			} else {
-	//				// Otherwise, cycle the feed and mark the motion in process.
-	//				Feed.cycleFeed(1);
-	//				feedInProcess = true;
-	//			}
-	//		}
+			if (!Feed.measurePlatformEmpty()) {
+				// If the measurement platform is full, we have to handle that first.
+				cState = 3;				// Measure Resistor
+			} else {
+				if (Feed.feedEmpty()) {
+					// If the feed is empty, we must be ready.
+					if (feedToEnd) {
+						cState = 0;			// Finished.
+						isQCR = false;			// In case we were in QCR, reset it.
+					} else {
+						cState = 1;			// Ready for next command
+					}
 
-	//		break;
+					sendReady();
+				} else {
+					// Otherwise, cycle the feed and mark the motion in process.
+					Feed.cycleFeed(1);
+					feedInProcess = true;
+				}
+			}
 
-	//	case 3:
-	//	// Measure Resistor
-	//		if (!Feed.measurePlatformEmpty()) {
-	//			// If the measurement platform isn't empty, measure the resistor
-	//			measurement = measureResistor();
+			break;
 
-	//			// Get the target cup and begin the sort motion
-	//			int targetSortPos = getTargetCup(measurement);
-	//			Wheel.moveTo(targetSortPos);
-	//			sortMotionInProcess = true;
-	//			cState = 4;				// Dispense Resistor
-	//		} else {
-	//			// If it's empty, we either need to go back to feeding or attempt dispense again.
-	//			if (sortMotionInProcess) {
-	//				cState = 4;			// Dispense Resistor
-	//			} else {
-	//				cState = 2;			// Feed Process
-	//			}
-	//		}
+		case 3:
+		// Measure Resistor
+			if (!Feed.measurePlatformEmpty()) {
+				// If the measurement platform isn't empty, measure the resistor
+				measurement = measureResistor();
 
-	//		break;
+				// Get the target cup and begin the sort motion
+				int targetSortPos = getTargetCup(measurement);
 
-	//	case 4:
-	//	// Dispense Resistor
-	//		if (!sortMotionInProcess) {
-	//			// A dispense state occurs after a sort motion has begun. Wait for the sort motion to complete and dispense. EZPZ.
-	//			SwingArm.write(swingOpen);
-	//			delay(swingTime);			// actual delay here, since we shouldn't move or process anything else until we're sure this is clear.
-	//			Feed.dispense();
-	//			SwingArm.write(swingHome);
-	//			delay(swingTime);
-	//			cState = 2;				// Feed Process
-	//		}
-	//
-	//}
+				// Report the measurement
+				Command measurementData;
+				measurementData.cmd = "MES";
+				measurementData.numArgs = 2;
+				measurementData.args[0] = String(targetSortPos);
+				measurementData.args[1] = String(measurement, 4);
+				sendCommand(measurementData);
+
+				// Move the sort wheel.
+				Wheel.moveTo(targetSortPos);
+				sortMotionInProcess = true;
+				cState = 4;				// Dispense Resistor
+			} else {
+				// If it's empty, we either need to go back to feeding or attempt dispense again.
+				if (sortMotionInProcess) {
+					cState = 4;			// Dispense Resistor
+				} else {
+					cState = 2;			// Feed Process
+				}
+			}
+
+			break;
+
+		case 4:
+		// Dispense Resistor
+			if (!sortMotionInProcess) {
+				// A dispense state occurs after a sort motion has begun. Wait for the sort motion to complete and dispense. EZPZ.
+				SwingArm.write(swingOpen);
+				delay(swingTime);			// actual delay here, since we shouldn't move or process anything else until we're sure this is clear.
+				Feed.dispense();
+				SwingArm.write(swingHome);
+				delay(swingTime);
+				cState = 2;				// Feed Process
+			}
+	
+	}
 }
 
 void isrFeedClear() {
@@ -284,7 +418,6 @@ Command parseCmd(String incCmd) {
 	}
 
 	// The rest of the string is the last arg.
-
 	output.args[argIndex] = incCmd;
 	output.numArgs = argIndex + 1;
 
@@ -394,7 +527,6 @@ void sendCommand(Command sendCmd) {
 	Serial.flush();
 }
 
-
 void sendError(String err) {
 	// Sends an error to the RPi
 
@@ -437,23 +569,6 @@ void sendAck() {
 	sendCommand(ackCommand);
 }
 
-/*
-case 1:
-// Mode 1 is Major Divisions, powers of 10 with precisions included.
-	for (int i = 0; i < 8; i++) {
-		// For each target cup, give it a min and max corresponding to a power of 10
-		double min = pow(10.0, i);
-		double max = min * 10;
-		min = min - (min * pMultiplier);
-		max = max + (max * pMultiplier);
-		Cups[i].setCupRange(min, max);
-	}
-
-	// State 1, waiting for a resistor
-	return(1);
-	break;
-*/
-
 void clearRegisters() {
 	// This function triggers the reset on the shift registers, then latches the empty register.
 
@@ -473,107 +588,111 @@ double measureResistor() {
 	// This function completes a full measurement cycle and returns a resistance in Ohms.
 	// 0.0 represents a rejected resistor.
 	
-	//ContactArm.write(contactTouch);
-	//delay(contactTime);
+	ContactArm.write(contactTouch);
+	delay(contactTime);
 	
-	// TODO: Determine algorithm to check if contact is positively made.
-	//bool contactMade = true;
-	
-	// If contact is not made, bring the test arm to push on the contact
-	//if (!contactMade) {
-	//	ContactArm.write(contactPress);
-	//}
-	
-	// TODO: Determine algorithm to check if contact is positively made.
-	//contactMade = true;
-	
-	// Still no contact? Reject this resistor.
-	//if (!contactMade) {
-	//	return(0.0);
-	//}
-	
-	//int medianReading = maxAnalog / 2;
-	//int cDifference, bestDifference = 99999;		// Arbitrarily large value here to ensure any reading is superior.
-	//int bestRange = 0;							// Range 0 is with outputs turned off, a safe fallback in case of failure.
-	//double reading, bestReading = 0.0;
-	
-	// For each range...
-	//for (int i = 1; i <= 9; i++) {
-		// Enable the outputs for testing this range and take a measurement.
-	//	ShiftReg.setAll(srState[i]);
-	//	delay(100);							// 5ms maximum operating time for relays, doubled for safety.
-	//	reading = analogRead(RMeas);
-	//	
-		// calculate the difference to center.
-	//	cDifference = reading - medianReading;
-	//	cDifference = (cDifference < 0) ? -cDifference : cDifference;	// Absolute value
-		
-		// If this measurement is superior to the current best, take note.
-	//	if (cDifference < bestDifference) {
-	//		bestRange = i;
-	//		bestDifference = cDifference;
-	//		bestReading = reading;
-	//	}
-	//}
-
-	int bestRange = 2;
-
-	ShiftReg.setAll(srState[bestRange]);
-	delay(100);
-
-	double bestReading = adc->analogRead(RMeas);
+	int medianReading = maxAnalog / 2;
+	int cDifference, bestDifference = 99999;		// Arbitrarily large value here to ensure any reading is superior.
+	int bestRange = 0;							// Range 0 is with outputs turned off, a safe fallback in case of failure.
+	double bestReading, reading = 0.0;
 	long readingSums = 0;
+		
+	// For each range...
+	for (int i = 3; i <= 9; i++) {
+		
+		// Enable the outputs for testing this range and take a measurement.
+		ShiftReg.setAll(srState[i]);
+		delay(50);							// 5ms maximum operating time for relays, x10 for safety.
 
-	int count = 0;
-	for (int i = 0; i < 1000; i++) {
-		readingSums = readingSums + adc->analogRead(RMeas);
-		count++;
+		int goodCount = 0;
+		int count = 0;
+
+		// Try to get 50 good measurements, but give up after 100 attempts.
+		while (goodCount < 50 || count < 100) {
+			count++;
+			int thisReading = adc->analogRead(RMeas);
+			double thisResistance = getResistance(thisReading, i);
+
+			// If the resistance is in an acceptable range, it's good
+			if (thisResistance < maxAccepted && thisResistance > 0.5) {
+				readingSums = readingSums + thisReading;
+				goodCount++;
+			}
+		}
+
+		if (goodCount == 0) {
+			reading = 0.0;
+		} else {
+			// Average the measurements
+			reading = (double) readingSums / (double) goodCount;
+		}
+
+		cDifference = reading - medianReading;
+		cDifference = (cDifference < 0) ? -cDifference : cDifference;	// Absolute value
+
+		// If this is better than the current best, make this the best.
+		if (cDifference < bestDifference) {
+			bestRange = i;
+			bestDifference = cDifference;
+			bestReading = reading;
+		}
 	}
 
-	bestReading = readingSums / count;
-
-
-	// Changing the range to a 0 index instead of a 1 index
-	bestRange--;
-
-	String data = String(bestReading);
-	sendDat(data);
-	
-	double result = 0.0;
-
-	// 7, 8, and 9 are the current source ranges. 1-6 are Volt Divider ranges
-	if (bestRange < 6) {
-		// First, convert the reading to volts. (High voltage for dividers)
-		double vReading = bestReading * (avHigh / maxAnalog);
-		
-		data = String(vReading);
-		sendDat(data);
-
-		data = String(internalTestResistances[bestRange], 4);
-		sendDat(data);
-		
-		// Voltage divider formula solved for R2...
-		result = (internalTestResistances[bestRange] * vReading) / (avHigh - vReading);
-
-	} else {
-		// Bring the range down to 0 index from 6-8 index
-		bestRange = bestRange - 6;
-
-		//Convert the reading to volts. (Low voltage for current sources)
-		double vReading = bestReading * (avLow / maxAnalog);
-
-		// Current source measurement is simple, V=IR, solving for R gives R=V/I
-		result = vReading / internalCurrentSources[bestRange];
-	}
+	// Convert the final result to a resistance.
+	double result = getResistance(bestReading, bestRange);
 
 	// Return to home position after measurement made.
-	//ContactArm.write(contactHome);
-	//delay(contactTime);
-
+	ContactArm.write(contactHome);
+	delay(contactTime);
 	ShiftReg.setAll(srState[0]);
 	
 	// Return the Ohms value.
 	return(result);
+}
+
+double getResistance(double measurement, int range) {
+	// This function returns a resistance from a given measurement in a given range.
+
+	double result = 0.0;
+
+	// Do not calculate resistances in the cutoff bands.
+	if (measurement < adcLCutoff || measurement > adcHCutoff) {
+		return(result);
+	}
+
+	// Range needs to change into a 0 index (typically it is 1-indexed.)
+	range--;
+
+	// 6, 7, and 8 are the current source ranges. 0-5 are Volt Divider ranges
+	if (range < 6) {
+		// First, convert the reading to volts. (High voltage for dividers)
+		double vReading = measurement * (avHigh / maxAnalog);
+
+		// Voltage divider formula solved for R2...
+		result = (internalTestResistances[range] * vReading) / (avHigh - vReading);
+
+	} else {
+		// Bring the range down to 0 index from 6-8 index
+		range = range - 6;
+
+		//Convert the reading to volts. (Low voltage for current sources)
+		double vReading = measurement * (avLow / maxAnalog);
+
+		// Current source measurement is simple, V=IR, solving for R gives R=V/I
+		result = vReading / internalCurrentSources[range];
+	}
+
+	return(result);
+}
+
+double getMin(double nominal, double precision) {
+	double diff = nominal * precision;
+	return(nominal - diff);
+}
+
+double getMax(double nominal, double precision) {
+	double diff = nominal * precision;
+	return(nominal + diff);
 }
 
 int getTargetCup(double measurement) {

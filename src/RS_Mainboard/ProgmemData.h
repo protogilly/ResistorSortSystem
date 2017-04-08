@@ -61,6 +61,9 @@ typedef struct {
 // Analog Resolution
 	#define bitPrecision 12
 
+// Maximum Result Acceptable (Above this is discarded for accuracy reasons)
+	#define maxAccepted 1000000
+
 // Constants for Moving Servos
 	extern const int contactHome;
 	extern const int contactTouch;
@@ -73,6 +76,8 @@ typedef struct {
 // Constants for Calibrated Measurements (Voltages, Resistances, Currents)
 	extern const double avHigh;
 	extern const double avLow;
+	extern const int adcLCutoff;
+	extern const int adcHCutoff;
 	extern const double internalTestResistances[6];
 	extern const double internalCurrentSources[3];
 

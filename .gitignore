@@ -9,3 +9,4 @@ src/Tiny84_StepFeeder/Release/Tiny84_StepFeeder.cpp.o
 *.o
 src/RS_Mainboard/Release/RS_Mainboard.cpp.o
 src/RPi/ResistorSortUI/debug
+*.o
