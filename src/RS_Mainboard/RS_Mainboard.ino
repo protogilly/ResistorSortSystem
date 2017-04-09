@@ -157,7 +157,7 @@ void loop() {
 		// Some command handling...
 		if (thisCommand.cmd == "MAJ") {
 			// "Major Divisions" is a common preset.
-			double precision = (thisCommand.args[0].toInt / 100.0);
+			double precision = (thisCommand.args[0].toInt() / 100.0);
 
 			// Each cup gets a range of 10 up to 82, in powers of 10 (82 is the high side standard resistance value at the highest precision)
 			for (int i = 0; i < 6; i++) {
@@ -188,8 +188,8 @@ void loop() {
 			// "Single Resistance" -- We search a collection of resistors for a specific value within a given precision.
 			// "Quality Check" -- Effectively the same as searching for a single resistance, except we set a flag to send measurement data.
 
-			int precision = thisCommand.args[0].toInt;
-			double nominal = thisCommand.args[1].toFloat;
+			int precision = thisCommand.args[0].toInt();
+			double nominal = thisCommand.args[1].toFloat();
 
 			// To do this, we simply set one cup to take this value, and the rest become rejects.
 			Wheel.cups[0].setCupRange(nominal, precision);
@@ -209,11 +209,11 @@ void loop() {
 
 		if (thisCommand.cmd == "SSR") {
 			// "Sortable Range" -- we get a precision and 9 typical values. The 10th is reject.
-			int precision = thisCommand.args[0].toInt;
+			int precision = thisCommand.args[0].toInt();
 
 			// Loop through the list of arguments setting up cups
 			for (int i = 1; i < thisCommand.numArgs; i++) {
-				Wheel.cups[i].setCupRange(thisCommand.args[i].toFloat, precision);
+				Wheel.cups[i].setCupRange(thisCommand.args[i].toFloat(), precision);
 				Wheel.cups[i].setRejectState(false);
 			}
 
@@ -237,13 +237,13 @@ void loop() {
 
 		if (thisCommand.cmd == "CUP") {
 			// "Cup set" command sets a cup to a specific value.
-			int cupNum = thisCommand.args[0].toInt;
-			double minVal = thisCommand.args[1].toFloat;
-			double maxVal = thisCommand.args[2].toFloat;
+			int cupNum = thisCommand.args[0].toInt();
+			double minVal = thisCommand.args[1].toFloat();
+			double maxVal = thisCommand.args[2].toFloat();
 			
 			bool isReject;
 
-			if (thisCommand.args[3].toInt == 0) {
+			if (thisCommand.args[3].toInt() == 0) {
 				isReject = false;
 			} else {
 				isReject = true;
@@ -592,9 +592,11 @@ double measureResistor() {
 	delay(contactTime);
 	
 	int medianReading = maxAnalog / 2;
-	int cDifference, bestDifference = 99999;		// Arbitrarily large value here to ensure any reading is superior.
+	int cDifference = 99999;
+	int bestDifference = 99999;		// Arbitrarily large value here to ensure any reading is superior.
 	int bestRange = 0;							// Range 0 is with outputs turned off, a safe fallback in case of failure.
-	double bestReading, reading = 0.0;
+	double bestReading = 0.0;
+	double reading = 0.0;
 	long readingSums = 0;
 		
 	// For each range...
