@@ -74,8 +74,10 @@ def fetchInt(prompt, minVal, maxVal):
         if (ret >= minVal and ret <= maxVal):
             validResponse = True
         else:
-            print("Please enter a value between {} and {}\n".format(minVal, maxVal))
-            sleep(2)
+            # Don't bother them twice if we already scolded the once.
+            if (ret != -1):
+                print("Please enter a value between {} and {}\n".format(minVal, maxVal))
+                sleep(2)
     
     return(ret)
         
