@@ -157,12 +157,23 @@ void loop() {
 		// Some command handling...
 		if (thisCommand.cmd == "MAJ") {
 			// "Major Divisions" is a common preset.
-			double precision = (thisCommand.args[0].toInt() / 100.0);
+			int precisionPercent = thisCommand.args[0].toInt();
+			double precision = (precisionPercent / 100.0);
 
 			// Each cup gets a range of 10 up to 82, in powers of 10 (82 is the high side standard resistance value at the highest precision)
 			for (int i = 0; i < 6; i++) {
 				double lowSide = pow(10.0, i);
-				double highSide = lowSide * 8.2;
+				double highSide;
+
+				// Fetch high side value based on precision
+				if (precisionPercent == 1) {
+					highSide = (lowSide * stdResistors1[E96Count - 1]) / 10;
+				} else if (precisionPercent == 2 || precisionPercent == 5) {
+					highSide = (lowSide * stdResistors2_5[E24Count - 1]) / 10;
+				} else {
+					highSide = (lowSide * stdResistors10[E12Count - 1]) / 10;
+				}
+
 				Wheel.cups[i].setCupRange(getMin(lowSide, precision), getMax(highSide, precision));
 				Wheel.cups[i].setRejectState(false);
 			}
