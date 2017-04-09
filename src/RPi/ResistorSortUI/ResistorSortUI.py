@@ -44,8 +44,10 @@ def menuPrompt(menuList):
         if (ret > 0 and ret <= len(menuList)):
             validResponse = True
         else:
-            print("Please enter a value between 1 and {}\n".format(len(menuList)))
-            sleep(2)
+            # If we've got a -1, we already scolded the user. Don't bother them twice.
+            if (ret != -1):
+                print("Please enter a value between 1 and {}\n".format(len(menuList)))
+                sleep(2)
 
     return(ret)
 
