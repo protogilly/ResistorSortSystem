@@ -87,14 +87,14 @@ double SortCup::getMax() {
 bool SortCup::canAccept(double value) {
 	int iVal = (int) value;
 
-	if (this->isReject() && iVal == 0) {
-		return(true);
-	}
-
 	if (value <= _maxVal && value >= _minVal) {
 		return(true);
 	} else {
 		return(false);
+	}
+
+	if (this->isReject()) {
+		return(true);
 	}
 }
 

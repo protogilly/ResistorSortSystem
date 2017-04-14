@@ -26,19 +26,6 @@ int StepFeed::cycleFeed(int count) {
 		return(-1);
 	}
 
-	bool isClear = true;
-
-	// Only cycle feed if the steps being fed are clear. Bits 0-4 of the queue are the feed states.
-	for (int i = (5 - count); i > 0; i--) {   //TODO: Check this logic.
-		if (bitRead(_queue, i) == true) {
-			isClear = false;
-		}
-	}
-
-	if (!isClear) {
-		return(-2);
-	}
-
 	Wire.beginTransmission(_wireChannel);
 	Wire.write(count);
 	Wire.endTransmission();

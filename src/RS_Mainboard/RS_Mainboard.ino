@@ -65,7 +65,7 @@ volatile bool sortMotionInProcess = false;
 int maxAnalog = 0;
 
 // State Machine Variable
-volatile int cState = 0;
+int cState = 0;
 
 // Global rep of measurement data
 double measurement = 0.0;
@@ -137,7 +137,6 @@ void setup() {
 	Command handshake = parseCmd(incCmd);
 
 	if (handshake.cmd == "RDY") {
-		sendAck();
 		digitalWrite(ledPin, LOW);
 	} else {
 		sendError("Inv Handshake on Startup. Halting.");
@@ -152,247 +151,247 @@ void loop() {
 	// At the start of every loop, check if a command is waiting.
 	if (cmdReady()) {
 		String incCmd = Serial.readString();
-		Command thisCommand = parseCmd(incCmd);
+		thisCommand = parseCmd(incCmd);
 
-		// Some command handling...
-		if (thisCommand.cmd == "MAJ") {
-			// "Major Divisions" is a common preset.
-			int precisionPercent = thisCommand.args[0].toInt();
-			double precision = (precisionPercent / 100.0);
+		if (cState == 0) {
+			// Some command handling...
+			if (thisCommand.cmd == "MAJ") {
+				// "Major Divisions" is a common preset.
+				int precisionPercent = thisCommand.args[0].toInt();
+				double precision = (precisionPercent / 100.0);
 
-			// Each cup gets a range of 10 up to 82, in powers of 10 (82 is the high side standard resistance value at the highest precision)
-			for (int i = 0; i < 6; i++) {
-				double lowSide = pow(10.0, i);
-				double highSide;
+				// Each cup gets a range of 10 up to 82, in powers of 10 (82 is the high side standard resistance value at the highest precision)
+				for (int i = 0; i < 6; i++) {
+					double lowSide = pow(10.0, i);
+					double highSide;
 
-				// Fetch high side value based on precision
-				if (precisionPercent == 1) {
-					highSide = (lowSide * stdResistors1[E96Count - 1]) / 10;
-				} else if (precisionPercent == 2 || precisionPercent == 5) {
-					highSide = (lowSide * stdResistors2_5[E24Count - 1]) / 10;
-				} else {
-					highSide = (lowSide * stdResistors10[E12Count - 1]) / 10;
+					// Fetch high side value based on precision
+					if (precisionPercent == 1) {
+						highSide = (lowSide * stdResistors1[E96Count - 1]) / 100.0;
+					} else if (precisionPercent == 2 || precisionPercent == 5) {
+						highSide = (lowSide * stdResistors2_5[E24Count - 1]) / 100.0;
+					} else {
+						highSide = (lowSide * stdResistors10[E12Count - 1]) / 100.0;
+					}
+
+					Wheel.cups[i].setCupRange(getMin(lowSide, precision), getMax(highSide, precision));
+					Wheel.cups[i].setRejectState(false);
 				}
 
-				Wheel.cups[i].setCupRange(getMin(lowSide, precision), getMax(highSide, precision));
-				Wheel.cups[i].setRejectState(false);
+				// Upper end cups are rejects for this range.
+				Wheel.cups[6].setRejectState(true);
+				Wheel.cups[7].setRejectState(true);
+				Wheel.cups[8].setRejectState(true);
+				Wheel.cups[9].setRejectState(true);
+
+				sendAck();
 			}
 
-			// Upper end cups are rejects for this range.
-			Wheel.cups[6].setRejectState(true);
-			Wheel.cups[7].setRejectState(true);
-			Wheel.cups[8].setRejectState(true);
-			Wheel.cups[9].setRejectState(true);
+			if (thisCommand.cmd == "DIV") {
+				// "Simple Division" -- we get a number of groups to divide into, a precision, and a range of typical values.
 
-			sendAck();
-		}
+				// TODO: This stuff.
 
-		if (thisCommand.cmd == "DIV") {
-			// "Simple Division" -- we get a number of groups to divide into, a precision, and a range of typical values.
-
-			// TODO: This stuff.
-
-			sendAck();
-		}
-
-		if (thisCommand.cmd == "SGL" || thisCommand.cmd == "QCR") {
-			// "Single Resistance" -- We search a collection of resistors for a specific value within a given precision.
-			// "Quality Check" -- Effectively the same as searching for a single resistance, except we set a flag to send measurement data.
-
-			int precision = thisCommand.args[0].toInt();
-			double nominal = thisCommand.args[1].toFloat();
-
-			// To do this, we simply set one cup to take this value, and the rest become rejects.
-			Wheel.cups[0].setCupRange(nominal, precision);
-			Wheel.cups[0].setRejectState(false);
-
-			for (int i = 1; i < cupCount; i++) {
-				Wheel.cups[i].setRejectState(true);
+				sendAck();
 			}
 
-			if (thisCommand.cmd == "QCR") {
-				isQCR = true;
+			if (thisCommand.cmd == "SGL" || thisCommand.cmd == "QCR") {
+				// "Single Resistance" -- We search a collection of resistors for a specific value within a given precision.
+				// "Quality Check" -- Effectively the same as searching for a single resistance, except we set a flag to send measurement data.
+
+				int precision = thisCommand.args[0].toInt();
+				double nominal = thisCommand.args[1].toFloat();
+
+				// To do this, we simply set one cup to take this value, and the rest become rejects.
+				Wheel.cups[0].setCupRange(nominal, precision);
+				Wheel.cups[0].setRejectState(false);
+
+				for (int i = 1; i < cupCount; i++) {
+					Wheel.cups[i].setRejectState(true);
+				}
+
+				if (thisCommand.cmd == "QCR") {
+					isQCR = true;
+				}
+
+				sendAck();
+
 			}
 
-			sendAck();
+			if (thisCommand.cmd == "SSR") {
+				// "Sortable Range" -- we get a precision and 9 typical values. The 10th is reject.
+				int precision = thisCommand.args[0].toInt();
 
-		}
+				// Loop through the list of arguments setting up cups
+				for (int i = 1; i < thisCommand.numArgs; i++) {
+					Wheel.cups[i].setCupRange(thisCommand.args[i].toFloat(), precision);
+					Wheel.cups[i].setRejectState(false);
+				}
 
-		if (thisCommand.cmd == "SSR") {
-			// "Sortable Range" -- we get a precision and 9 typical values. The 10th is reject.
-			int precision = thisCommand.args[0].toInt();
+				Wheel.cups[9].setRejectState(true);
 
-			// Loop through the list of arguments setting up cups
-			for (int i = 1; i < thisCommand.numArgs; i++) {
-				Wheel.cups[i].setCupRange(thisCommand.args[i].toFloat(), precision);
-				Wheel.cups[i].setRejectState(false);
+				sendAck();
+
 			}
 
-			Wheel.cups[9].setRejectState(true);
+			if (thisCommand.cmd == "OHM") {
+				// "Ohmmeter mode" -- We set all cups to accept all resistors. Since we always send measurement data back, there's no need to do much else.
 
-			sendAck();
+				for (int i = 0; i < cupCount; i++) {
+					Wheel.cups[i].setCupRange(0.0, 1000000000.0);
+					Wheel.cups[i].setRejectState(false);
+				}
 
-		}
+				sendAck();
 
-		if (thisCommand.cmd == "OHM") {
-			// "Ohmmeter mode" -- We set all cups to accept all resistors. Since we always send measurement data back, there's no need to do much else.
-
-			for (int i = 0; i < cupCount; i++) {
-				Wheel.cups[i].setCupRange(0.0, 1000000000.0);
-				Wheel.cups[i].setRejectState(false);
 			}
 
-			sendAck();
+			if (thisCommand.cmd == "CUP") {
+				// "Cup set" command sets a cup to a specific value.
+				int cupNum = thisCommand.args[0].toInt();
+				double minVal = thisCommand.args[1].toFloat();
+				double maxVal = thisCommand.args[2].toFloat();
 
-		}
+				bool isReject;
 
-		if (thisCommand.cmd == "CUP") {
-			// "Cup set" command sets a cup to a specific value.
-			int cupNum = thisCommand.args[0].toInt();
-			double minVal = thisCommand.args[1].toFloat();
-			double maxVal = thisCommand.args[2].toFloat();
-			
-			bool isReject;
+				if (thisCommand.args[3].toInt() == 0) {
+					isReject = false;
+				} else {
+					isReject = true;
+				}
 
-			if (thisCommand.args[3].toInt() == 0) {
-				isReject = false;
-			} else {
-				isReject = true;
+				// Convert to 0-index
+				cupNum--;
+
+				Wheel.cups[cupNum].setCupRange(minVal, maxVal);
+				Wheel.cups[cupNum].setRejectState(isReject);
+
+				sendAck();
+
 			}
-
-			// Convert to 0-index
-			cupNum--;
-
-			Wheel.cups[cupNum].setCupRange(minVal, maxVal);
-			Wheel.cups[cupNum].setRejectState(isReject);
-
-			sendAck();
-
-		}
-
-		if (thisCommand.cmd == "SRT") {
-			cState = 1;
-
-			sendReady();
 		}
 	}
 
 	// The loop is a state machine, the action the system takes depends on what state it is in.
-	switch (cState) {
-		case 0:
-		// Waiting for Mode Set (RPi Command). Do nothing.
-			break;
-		
-		case 1:
+	if (cState == 0) {
+		// Waiting for SRT.	
+		if (thisCommand.cmd == "SRT") {
+			cState = 1;
+			sendReady();
+		}
+	} else if (cState == 1) {
 		// Sorting Mode (Waiting on NXT).
-			// NXT is the command that indicates the user has pressed the button saying they loaded a resistor.
-			if (thisCommand.cmd == "NXT") {
-				if (feedInProcess) {
-					sendError("Feed In Process");
-				} else if (!Feed.loadPlatformEmpty()) {
-					sendError("Load Platform Not Empty");
-				} else {
-					Feed.load();
-					cState = 2;		// Feed Process
-					sendAck();
-				}
-			}
+		// NXT is the command that indicates the user has pressed the button saying they loaded a resistor.
+		if (thisCommand.cmd == "NXT") {
 
-			// End is the user requesting that we cycle to completion.
-			if (thisCommand.cmd == "END") {
-				feedToEnd = true;
-				cState = 2;			// Feed Process
+			if (feedInProcess) {
+				sendError("Feed In Process");
+				return;
+			} else if (!Feed.loadPlatformEmpty()) {
+				sendError("Load Platform Not Empty");
+				return;
+			} else {
+				Feed.load();
+				cState = 2;		// Feed Process
 				sendAck();
+				return;
 			}
-			
-			break;
+		}
 
-		case 2:
+		// End is the user requesting that we cycle to completion.
+		if (thisCommand.cmd == "END") {
+			feedToEnd = true;
+			cState = 2;			// Feed Process
+			sendAck();
+			return;
+		}
+
+	} else if (cState == 2) {
 		// Resistor Feeding
-			if (Feed.loadPlatformEmpty()) {
-				// If the feed platform is empty, but we're in a motion, wait.
-				if (feedInProcess) {
-					break;
-				}
-
-				// If we're not feeding to the end after waiting, we're clear for a new command.
-				if (!feedToEnd) {
-					cState = 1;		// Ready for next command
-					sendReady();
-					break;
-				}
+		if (Feed.loadPlatformEmpty()) {
+			// If the feed platform is empty, but we're in a motion, wait.
+			if (feedInProcess) {
+				return;
 			}
 
-			// Because of breaks, we only get to this point if the load platform is full.
-			// Structuring in this way allows a states where we are feeding to the end to fall through to this point.
+			// If we're not feeding to the end after waiting, we're clear for a new command.
+			if (!feedToEnd) {
+				cState = 1;		// Ready for next command
+				sendReady();
+				return;
+			}
+		}
 
-			if (!Feed.measurePlatformEmpty()) {
-				// If the measurement platform is full, we have to handle that first.
-				cState = 3;				// Measure Resistor
-			} else {
-				if (Feed.feedEmpty()) {
-					// If the feed is empty, we must be ready.
-					if (feedToEnd) {
-						cState = 0;			// Finished.
-						isQCR = false;			// In case we were in QCR, reset it.
-					} else {
-						cState = 1;			// Ready for next command
-					}
+		// Because of returns, we only get to this point if the load platform is full.
+		// Structuring in this way allows a states where we are feeding to the end to fall through to this point.
 
-					sendReady();
+		if (!Feed.measurePlatformEmpty()) {
+			// If the measurement platform is full, we have to handle that first.
+			cState = 3;				// Measure Resistor
+		} else {
+			if (Feed.feedEmpty()) {
+				// If the feed is empty, we must be ready.
+				if (feedToEnd) {
+					cState = 0;			// Finished.
+					isQCR = false;			// In case we were in QCR, reset it.
+					feedToEnd = false;
+					sendDone();
 				} else {
-					// Otherwise, cycle the feed and mark the motion in process.
-					Feed.cycleFeed(1);
-					feedInProcess = true;
+					cState = 1;			// Ready for next command
+					sendReady();
 				}
+			} else {
+				// Otherwise, cycle the feed and mark the motion in process.
+				Feed.cycleFeed(1);
+				feedInProcess = true;
 			}
+		}
 
-			break;
+		return;
 
-		case 3:
+	} else if (cState == 3) {
 		// Measure Resistor
-			if (!Feed.measurePlatformEmpty()) {
-				// If the measurement platform isn't empty, measure the resistor
-				measurement = measureResistor();
+		if (!Feed.measurePlatformEmpty()) {
+			// If the measurement platform isn't empty, measure the resistor
+			measurement = measureResistor();
 
-				// Get the target cup and begin the sort motion
-				int targetSortPos = getTargetCup(measurement);
+			// Get the target cup and begin the sort motion
+			int targetSortPos = getTargetCup(measurement);
 
-				// Report the measurement
-				Command measurementData;
-				measurementData.cmd = "MES";
-				measurementData.numArgs = 2;
-				measurementData.args[0] = String(targetSortPos);
-				measurementData.args[1] = String(measurement, 4);
-				sendCommand(measurementData);
+			// Report the measurement
+			Command measurementData;
+			measurementData.cmd = "MES";
+			measurementData.numArgs = 2;
+			measurementData.args[0] = String(targetSortPos);
+			measurementData.args[1] = String(measurement, 4);
+			sendCommand(measurementData);
 
-				// Move the sort wheel.
-				Wheel.moveTo(targetSortPos);
-				sortMotionInProcess = true;
-				cState = 4;				// Dispense Resistor
+			// Move the sort wheel.
+			Wheel.moveTo(targetSortPos);
+			sortMotionInProcess = true;
+			cState = 4;				// Dispense Resistor
+		} else {
+			// If it's empty, we either need to go back to feeding or attempt dispense again.
+			if (sortMotionInProcess) {
+				cState = 4;			// Dispense Resistor
 			} else {
-				// If it's empty, we either need to go back to feeding or attempt dispense again.
-				if (sortMotionInProcess) {
-					cState = 4;			// Dispense Resistor
-				} else {
-					cState = 2;			// Feed Process
-				}
+				cState = 2;			// Feed Process
 			}
+		}
 
-			break;
+		return;
 
-		case 4:
+	} else if (cState == 4) {
 		// Dispense Resistor
-			if (!sortMotionInProcess) {
-				// A dispense state occurs after a sort motion has begun. Wait for the sort motion to complete and dispense. EZPZ.
-				SwingArm.write(swingOpen);
-				delay(swingTime);			// actual delay here, since we shouldn't move or process anything else until we're sure this is clear.
-				Feed.dispense();
-				SwingArm.write(swingHome);
-				delay(swingTime);
-				cState = 2;				// Feed Process
-			}
-	
+		if (!sortMotionInProcess) {
+			// A dispense state occurs after a sort motion has begun. Wait for the sort motion to complete and dispense. EZPZ.
+			SwingArm.write(swingOpen);
+			delay(swingTime);			// actual delay here, since we shouldn't move or process anything else until we're sure this is clear.
+			Feed.dispense();
+			SwingArm.write(swingHome);
+			delay(swingTime);
+			cState = 2;				// Feed Process
+		}
 	}
 }
 
@@ -571,6 +570,15 @@ void sendReady() {
 	sendCommand(readyCommand);
 }
 
+void sendDone() {
+	Command doneCommand;
+
+	doneCommand.cmd = "DON";
+	doneCommand.numArgs = 0;
+
+	sendCommand(doneCommand);
+}
+
 void sendAck() {
 	Command ackCommand;
 
@@ -611,7 +619,7 @@ double measureResistor() {
 	long readingSums = 0;
 		
 	// For each range...
-	for (int i = 3; i <= 9; i++) {
+	for (int i = 3; i <= 7; i++) {
 		
 		// Enable the outputs for testing this range and take a measurement.
 		ShiftReg.setAll(srState[i]);
@@ -619,9 +627,10 @@ double measureResistor() {
 
 		int goodCount = 0;
 		int count = 0;
+		bool testComplete = false;
 
-		// Try to get 50 good measurements, but give up after 100 attempts.
-		while (goodCount < 50 || count < 100) {
+		// Try to get 30 good measurements, but give up after 100 attempts.
+		while (!testComplete) {
 			count++;
 			int thisReading = adc->analogRead(RMeas);
 			double thisResistance = getResistance(thisReading, i);
@@ -630,6 +639,14 @@ double measureResistor() {
 			if (thisResistance < maxAccepted && thisResistance > 0.5) {
 				readingSums = readingSums + thisReading;
 				goodCount++;
+			}
+
+			if (count > 100) {
+				testComplete = true;
+			}
+
+			if (goodCount > 30) {
+				testComplete = true;
 			}
 		}
 
@@ -713,7 +730,7 @@ int getTargetCup(double measurement) {
 	
 	for (int i = 0; i < cupCount; i++) {
 		// For each cup, look for a valid home that is not a reject.
-		if (Wheel.cups[i].canAccept(measurement) && !Wheel.cups[i].isReject()) {
+		if (Wheel.cups[i].canAccept(measurement) && !(Wheel.cups[i].isReject())) {
 			int result = i + 1;
 			return(result);	// Return that cup.
 		}
@@ -727,6 +744,6 @@ int getTargetCup(double measurement) {
 		}
 	}
 
-	sendError("No Reject Cup Found");
+	sendError("No Valid Cup Found");
 	return(-1);
 }
