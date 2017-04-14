@@ -55,11 +55,14 @@ typedef struct {
 	#define SCL		19
 
 // I2C Slave Channels
-	#define SortController 1	
-	#define FeedController 2
+	#define SortController 0x1	
+	#define FeedController 0x2
 	
 // Analog Resolution
 	#define bitPrecision 12
+
+// Maximum Result Acceptable (Above this is discarded for accuracy reasons)
+	#define maxAccepted 1000000
 
 // Constants for Moving Servos
 	extern const int contactHome;
@@ -73,7 +76,9 @@ typedef struct {
 // Constants for Calibrated Measurements (Voltages, Resistances, Currents)
 	extern const double avHigh;
 	extern const double avLow;
-	extern const long internalTestResistances[6];
+	extern const int adcLCutoff;
+	extern const int adcHCutoff;
+	extern const double internalTestResistances[6];
 	extern const double internalCurrentSources[3];
 
 // Standard Resistor values

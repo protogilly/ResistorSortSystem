@@ -16,7 +16,7 @@
 #include <AccelStepper.h>
 
 #ifndef TWI_RX_BUFFER_SIZE
-#define TWI_RX_BUFFER_SIZE (16)
+#define TWI_RX_BUFFER_SIZE (1)
 #endif
 
 // Pin Definitions
@@ -35,6 +35,9 @@ volatile uint8_t cycleCount = 0;	// Number of full step cycles to execute.
 AccelStepper stepFeeder(1, pinStep, pinDir);
 
 void setup() {
+	// Stepper Enable pin is inverted.
+	stepFeeder.setPinsInverted(false, false, true);
+
 	// Start I2C comms.
 	TinyWireS.begin(I2C_SLAVE_ADDRESS);
 	TinyWireS.onReceive(receiveEvent);
@@ -48,8 +51,8 @@ void setup() {
 
 	// Setup stepper settings.
 	stepFeeder.setEnablePin(pinEnable);
-	stepFeeder.setMaxSpeed(75.0);
-	stepFeeder.setAcceleration(100.0);
+	stepFeeder.setMaxSpeed(400.0);
+	stepFeeder.setAcceleration(270.0);
 
 	// Turn off the stepper motor on startup to save energy.
 	stepFeeder.disableOutputs();
@@ -65,7 +68,7 @@ void loop() {
 			// Otherwise, turn off the flag and send a trigger to the master
 			inMotion = false;
 			digitalWrite(attTrig3, HIGH);
-			tws_delay(5);
+			tws_delay(10);
 			digitalWrite(attTrig3, LOW);
 
 			// Turn off the stepper to save energy between actions.
@@ -77,7 +80,13 @@ void loop() {
 	TinyWireS_stop_check();
 }
 
-void receiveEvent(uint8_t uCount) {
+void receiveEvent(uint8_t howMany) {
+	if (howMany < 1 || howMany > TWI_RX_BUFFER_SIZE) {
+		return;
+	}
+
+	uint8_t uCount = TinyWireS.receive();
+
 	if (!hasSetup) {
 		// If we haven't recieved a setup yet, this must be it. Set the number of steps per feed action.
 		fwdSteps = uCount;
@@ -85,6 +94,12 @@ void receiveEvent(uint8_t uCount) {
 	} else {
 		// Otherwise, this must be a command to move a certain number of cycles. Turn on the stepper motor and start the motion.
 		cycleCount = uCount;
+
+		// First, though, a sanity check. We'll never cycle more than 10 times.
+		if (cycleCount > 10) {
+			return;
+		}
+		
 		stepFeeder.enableOutputs();
 		inMotion = true;
 	}

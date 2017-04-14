@@ -16,17 +16,22 @@
 
 // Constants for Moving Servos
 	const int contactHome = 45;
-	const int contactTouch = 5;
-	const int contactPress = 0;
-	const int contactTime = 15;		// How long (in millis) does it take to move from Home to Touch?
+	const int contactTouch = 10;
+	const int contactPress = 5;
+	const int contactTime = 450;		// How long (in millis) does it take to move from Home to Touch?
 	const int swingHome = 180;
 	const int swingOpen = 130;
 	const int swingTime = 400;		// How long (in millis) does it take to move from Home to Open?
 
 // Constants for Calibrated Measurements (Voltages, Resistances, Currents)
-	const double avHigh = 3.3;
+	const double avHigh = 3.317;
 	const double avLow = 1.5;
-	const long internalTestResistances[6] = {10000000, 1000000, 100000, 10000, 1000, 100};
+	const int adcLCutoff = 220;
+	const int adcHCutoff = 3875;
+									// 10M and 1M ranges acting oddly???
+	const double internalTestResistances[6] = {10500000, 999000, 99747.01, 10051.5, 999.8, 99.5};
+
+	//	STILL REMAINS TO BE CALIBRATED
 	const double internalCurrentSources[3] = {0.1, 0.02937, 0.01818};
 
 // Standard Resistor values (all values are different powers of 10 for these numbers)

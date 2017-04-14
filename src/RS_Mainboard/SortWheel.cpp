@@ -40,8 +40,18 @@ void SortWheel::moveTo(int target) {
 
 	bestRoute = rightPath < leftPath ? rightPath : -leftPath;
 
+	// We'd like to only ever send a single byte.
+	uint8_t route = 0;
+
+	// We know we'll never send a very large value. Negative numbers can start at +100.
+	if (bestRoute < 0) {
+		bestRoute = bestRoute * -1;
+		bestRoute = bestRoute + 100;
+	}
+	route = (uint8_t) bestRoute;
+
 	Wire.beginTransmission(_wireChannel);
-	Wire.write(bestRoute);
+	Wire.write(route);
 	Wire.endTransmission();
 
 	_curPos = target;
@@ -77,14 +87,14 @@ double SortCup::getMax() {
 bool SortCup::canAccept(double value) {
 	int iVal = (int) value;
 
-	if (this->isReject() && iVal == 0) {
-		return(true);
-	}
-
 	if (value <= _maxVal && value >= _minVal) {
 		return(true);
 	} else {
 		return(false);
+	}
+
+	if (this->isReject()) {
+		return(true);
 	}
 }
 
@@ -102,8 +112,8 @@ void SortCup::setCupRange(double minValue, double maxValue) {
 	_maxVal = maxValue;
 }
 
-void SortCup::setCupRange(double nominalValue, int precision) {
-	double range = nominalValue * ((double) precision / 100.0);
+void SortCup::setCupRange(double nominalValue, int precisionPercent) {
+	double range = nominalValue * ((double) precisionPercent / 100.0);
 
 	_minVal = nominalValue - range;
 	_maxVal = nominalValue + range;

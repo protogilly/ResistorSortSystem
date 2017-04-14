@@ -37,7 +37,7 @@ class SortCup {
 	bool isReject();
 	void setRejectState(bool state);
 	void setCupRange(double minValue, double maxValue);
-	void setCupRange(double nominalValue, int precision);
+	void setCupRange(double nominalValue, int precisionPercent);
 
 	private:
 	double _minVal;
